@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מערכת ניהול אוטובוסים</title>
+    <meta name="description" content="מערכת לניהול אוטובוסים, תלמידים ומסלולים עם אופטימיזציה מבוססת Google Maps">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles/main.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <!-- Loading Screen -->
+        <div id="loading-screen" class="loading-screen">
+            <div class="loader">
+                <div class="bus-icon">🚌</div>
+                <div class="loading-text">טוען...</div>
+            </div>
+        </div>
+
+        <!-- Login Page -->
+        <div id="login-page" class="page hidden">
+            <div class="login-container">
+                <div class="login-card glass-card">
+                    <div class="login-header">
+                        <div class="logo">🚌</div>
+                        <h1>מערכת ניהול אוטובוסים</h1>
+                        <p>התחבר כדי להמשיך</p>
+                    </div>
+                    <form id="login-form" class="login-form">
+                        <div class="form-group">
+                            <label for="email">אימייל</label>
+                            <input type="email" id="email" required placeholder="your@email.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="password">סיסמה</label>
+                            <input type="password" id="password" required placeholder="••••••••">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full">
+                            <span id="login-btn-text">התחבר</span>
+                        </button>
+                        <div class="form-divider">
+                            <span>או</span>
+                        </div>
+                        <button type="button" id="register-btn" class="btn btn-secondary btn-full">
+                            צור חשבון חדש
+                        </button>
+                    </form>
+                    <div id="login-error" class="error-message hidden"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main App -->
+        <div id="main-app" class="hidden">
+            <!-- Navbar -->
+            <nav class="navbar glass-nav">
+                <div class="nav-brand">
+                    <span class="nav-logo">🚌</span>
+                    <span class="nav-title">ניהול אוטובוסים</span>
+                </div>
+                <div class="nav-links">
+                    <a href="#dashboard" class="nav-link active" data-page="dashboard">
+                        <span class="nav-icon">📊</span>
+                        <span>לוח בקרה</span>
+                    </a>
+                    <a href="#buses" class="nav-link" data-page="buses">
+                        <span class="nav-icon">🚌</span>
+                        <span>אוטובוסים</span>
+                    </a>
+                    <a href="#students" class="nav-link" data-page="students">
+                        <span class="nav-icon">👨‍🎓</span>
+                        <span>תלמידים</span>
+                    </a>
+                    <a href="#routes" class="nav-link" data-page="routes">
+                        <span class="nav-icon">🗺️</span>
+                        <span>מסלולים</span>
+                    </a>
+                    <a href="#settings" class="nav-link admin-only" data-page="settings">
+                        <span class="nav-icon">⚙️</span>
+                        <span>הגדרות</span>
+                    </a>
+                </div>
+                <div class="nav-user">
+                    <span id="user-email" class="user-email"></span>
+                    <span id="user-role" class="user-role"></span>
+                    <button id="logout-btn" class="btn btn-ghost">יציאה</button>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="main-content">
+                <!-- Dashboard Page -->
+                <section id="dashboard-page" class="page-content">
+                    <div class="page-header">
+                        <h1>לוח בקרה</h1>
+                        <p>סקירה כללית של המערכת</p>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card glass-card">
+                            <div class="stat-icon">🚌</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="total-buses">0</span>
+                                <span class="stat-label">אוטובוסים</span>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-card">
+                            <div class="stat-icon">👨‍🎓</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="total-students">0</span>
+                                <span class="stat-label">תלמידים</span>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-card">
+                            <div class="stat-icon">🗺️</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="total-routes">0</span>
+                                <span class="stat-label">מסלולים פעילים</span>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-card">
+                            <div class="stat-icon">👥</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="total-users">0</span>
+                                <span class="stat-label">משתמשים</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dashboard-grid">
+                        <div class="dashboard-card glass-card">
+                            <h3>אוטובוסים אחרונים</h3>
+                            <div id="recent-buses" class="list-container"></div>
+                        </div>
+                        <div class="dashboard-card glass-card">
+                            <h3>תלמידים אחרונים</h3>
+                            <div id="recent-students" class="list-container"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Buses Page -->
+                <section id="buses-page" class="page-content hidden">
+                    <div class="page-header">
+                        <h1>ניהול אוטובוסים</h1>
+                        <button id="add-bus-btn" class="btn btn-primary admin-only">
+                            <span>+</span> הוסף אוטובוס
+                        </button>
+                    </div>
+                    <div class="search-bar">
+                        <input type="text" id="bus-search" placeholder="חפש אוטובוס..." class="search-input">
+                    </div>
+                    <div id="buses-list" class="cards-grid"></div>
+                </section>
+
+                <!-- Students Page -->
+                <section id="students-page" class="page-content hidden">
+                    <div class="page-header">
+                        <h1>ניהול תלמידים</h1>
+                        <button id="add-student-btn" class="btn btn-primary admin-only">
+                            <span>+</span> הוסף תלמיד
+                        </button>
+                    </div>
+                    <div class="filters-bar">
+                        <input type="text" id="student-search" placeholder="חפש תלמיד..." class="search-input">
+                        <select id="bus-filter" class="select-input">
+                            <option value="">כל האוטובוסים</option>
+                        </select>
+                    </div>
+                    <div id="students-list" class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>שם פרטי</th>
+                                    <th>שם משפחה</th>
+                                    <th>כתובת</th>
+                                    <th>אוטובוס</th>
+                                    <th class="admin-only">פעולות</th>
+                                </tr>
+                            </thead>
+                            <tbody id="students-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Routes Page -->
+                <section id="routes-page" class="page-content hidden">
+                    <div class="page-header">
+                        <h1>מסלולים</h1>
+                        <div class="header-actions">
+                            <select id="route-bus-select" class="select-input">
+                                <option value="">בחר אוטובוס</option>
+                            </select>
+                            <button id="calculate-route-btn" class="btn btn-primary">חשב מסלול</button>
+                        </div>
+                    </div>
+                    <div class="route-container">
+                        <div class="route-map-container glass-card">
+                            <div id="route-map" class="map-placeholder">
+                                <div class="map-message">
+                                    <span>🗺️</span>
+                                    <p>בחר אוטובוס וחשב מסלול להצגת המפה</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="route-details glass-card">
+                            <div class="route-header">
+                                <h3>פרטי המסלול</h3>
+                                <div class="route-actions hidden" id="route-actions">
+                                    <button id="print-route-btn" class="btn btn-secondary">
+                                        <span>🖨️</span> הדפס
+                                    </button>
+                                    <button id="waze-route-btn" class="btn btn-secondary">
+                                        <span>🧭</span> Waze
+                                    </button>
+                                    <button id="gmaps-route-btn" class="btn btn-secondary">
+                                        <span>📍</span> Google Maps
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="route-info" class="route-info">
+                                <p class="empty-state">בחר אוטובוס לצפייה במסלול</p>
+                            </div>
+                            <div id="route-stops" class="route-stops"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Settings Page -->
+                <section id="settings-page" class="page-content hidden">
+                    <div class="page-header">
+                        <h1>הגדרות מערכת</h1>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="settings-card glass-card">
+                            <h3>הגדרות API</h3>
+                            <form id="api-settings-form">
+                                <div class="form-group">
+                                    <label for="google-api-key">Google Maps API Key</label>
+                                    <input type="password" id="google-api-key" placeholder="הזן את ה-API Key">
+                                    <small>נדרש לחישוב מסלולים והצגת מפות</small>
+                                </div>
+                                <button type="submit" class="btn btn-primary">שמור הגדרות</button>
+                            </form>
+                        </div>
+                        <div class="settings-card glass-card">
+                            <h3>📊 Google Sheets (אחסון בענן)</h3>
+                            <form id="sheets-settings-form">
+                                <div class="form-group">
+                                    <label for="sheets-client-id">Client ID</label>
+                                    <input type="text" id="sheets-client-id"
+                                        placeholder="xxxxxxxx.apps.googleusercontent.com">
+                                    <small>מ-Google Cloud Console → Credentials</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="sheets-api-key">API Key</label>
+                                    <input type="text" id="sheets-api-key" placeholder="AIzaSy...">
+                                    <small>מ-Google Cloud Console → Credentials</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="sheets-spreadsheet-id">Spreadsheet ID</label>
+                                    <input type="text" id="sheets-spreadsheet-id"
+                                        placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms">
+                                    <small>מה-URL של ה-Spreadsheet שלך</small>
+                                </div>
+                                <button type="submit" class="btn btn-primary">שמור הגדרות</button>
+                            </form>
+                            <div id="sheets-status" class="status-indicator">
+                                <span class="status-dot"></span>
+                                <span class="status-text">לא מחובר</span>
+                            </div>
+                            <div class="sheets-actions"
+                                style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <button id="sheets-signin-btn" class="btn btn-secondary">🔑 התחבר ל-Google</button>
+                                <button id="sheets-signout-btn" class="btn btn-ghost">יציאה</button>
+                            </div>
+                            <div
+                                style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                                <h4 style="margin-bottom: 0.5rem;">סנכרון נתונים</h4>
+                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                    <button id="sync-to-sheets-btn" class="btn btn-secondary">⬆️ העלה ל-Sheets</button>
+                                    <button id="sync-from-sheets-btn" class="btn btn-secondary">⬇️ הורד
+                                        מ-Sheets</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="settings-card glass-card">
+                            <h3>ניהול משתמשים</h3>
+                            <div id="users-list" class="users-list"></div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <!-- Modals -->
+        <div id="modal-overlay" class="modal-overlay hidden">
+            <!-- Bus Modal -->
+            <div id="bus-modal" class="modal hidden">
+                <div class="modal-header">
+                    <h2 id="bus-modal-title">הוסף אוטובוס</h2>
+                    <button class="modal-close" data-close="bus-modal">&times;</button>
+                </div>
+                <form id="bus-form" class="modal-form">
+                    <input type="hidden" id="bus-id">
+                    <div class="form-group">
+                        <label for="bus-name">שם האוטובוס</label>
+                        <input type="text" id="bus-name" required placeholder="לדוגמה: אוטובוס 1">
+                    </div>
+                    <div class="form-group">
+                        <label for="bus-start">נקודת התחלה</label>
+                        <input type="text" id="bus-start" required placeholder="כתובת נקודת היציאה">
+                    </div>
+                    <div class="form-group">
+                        <label for="bus-end">נקודת סיום</label>
+                        <input type="text" id="bus-end" required placeholder="כתובת היעד הסופי">
+                    </div>
+                    <div class="form-group">
+                        <label for="bus-notes">הערות</label>
+                        <textarea id="bus-notes" placeholder="הערות נוספות (אופציונלי)"></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" data-close="bus-modal">ביטול</button>
+                        <button type="submit" class="btn btn-primary">שמור</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Student Modal -->
+            <div id="student-modal" class="modal hidden">
+                <div class="modal-header">
+                    <h2 id="student-modal-title">הוסף תלמיד</h2>
+                    <button class="modal-close" data-close="student-modal">&times;</button>
+                </div>
+                <form id="student-form" class="modal-form">
+                    <input type="hidden" id="student-id">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="student-first-name">שם פרטי</label>
+                            <input type="text" id="student-first-name" required placeholder="שם פרטי">
+                        </div>
+                        <div class="form-group">
+                            <label for="student-last-name">שם משפחה</label>
+                            <input type="text" id="student-last-name" required placeholder="שם משפחה">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="student-address">כתובת / עיר</label>
+                        <input type="text" id="student-address" required placeholder="כתובת מלאה או שם עיר">
+                    </div>
+                    <div class="form-group">
+                        <label for="student-bus">אוטובוס</label>
+                        <select id="student-bus">
+                            <option value="">🤖 שיוך אוטומטי לפי כתובת</option>
+                        </select>
+                        <small>השאר ריק לשיוך אוטומטי לאוטובוס הקרוב ביותר</small>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" data-close="student-modal">ביטול</button>
+                        <button type="submit" class="btn btn-primary">שמור</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Confirm Modal -->
+            <div id="confirm-modal" class="modal hidden">
+                <div class="modal-header">
+                    <h2>אישור מחיקה</h2>
+                    <button class="modal-close" data-close="confirm-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p id="confirm-message">האם אתה בטוח שברצונך למחוק?</p>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" data-close="confirm-modal">ביטול</button>
+                    <button type="button" id="confirm-delete-btn" class="btn btn-danger">מחק</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div id="toast-container" class="toast-container"></div>
+    </div>
+
+    <!-- Print Template -->
+    <div id="print-template" class="print-only">
+        <div class="print-header">
+            <h1>🚌 מסלול נסיעה</h1>
+            <div id="print-bus-info"></div>
+            <div id="print-date"></div>
+        </div>
+        <div id="print-route-details"></div>
+        <div id="print-stops-list"></div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/sheets.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/maps.js"></script>
+    <script src="js/buses.js"></script>
+    <script src="js/students.js"></script>
+    <script src="js/routes.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>
