@@ -28,6 +28,12 @@ class StudentManager {
             addStudentBtn.addEventListener('click', () => this.openStudentModal());
         }
 
+        // Reassign all students button
+        const reassignAllBtn = document.getElementById('reassign-all-students-btn');
+        if (reassignAllBtn) {
+            reassignAllBtn.addEventListener('click', () => this.reassignAllStudents());
+        }
+
         // Student form submit
         const studentForm = document.getElementById('student-form');
         if (studentForm) {
@@ -276,6 +282,93 @@ class StudentManager {
     // Get all students
     getAllStudents() {
         return this.students;
+    }
+
+    // Reassign all students to best buses
+    async reassignAllStudents() {
+        // Check if Maps is ready
+        if (!window.mapsService.isReady()) {
+            window.app.showToast('יש להגדיר Google Maps API Key בהגדרות', 'error');
+            return;
+        }
+
+        // Get all students
+        const students = this.getAllStudents();
+
+        if (students.length === 0) {
+            window.app.showToast('אין תלמידים במערכת', 'warning');
+            return;
+        }
+
+        // Get all buses
+        const buses = window.busManager ? window.busManager.getAllBuses() : [];
+
+        if (buses.length === 0) {
+            window.app.showToast('אין אוטובוסים במערכת', 'warning');
+            return;
+        }
+
+        // Show confirmation dialog
+        const confirmMessage = `האם אתה בטוח שברצונך לשייך מחדש את כל ${students.length} התלמידים? פעולה זו תשנה את שיוכי האוטובוסים הקיימים.`;
+
+        window.app.showConfirmModal(confirmMessage, async () => {
+            try {
+                window.app.showToast('מתחיל שיוך מחדש...', 'info');
+
+                let successCount = 0;
+                let failCount = 0;
+                let unchangedCount = 0;
+
+                // Process each student
+                for (let i = 0; i < students.length; i++) {
+                    const student = students[i];
+                    const previousBusId = student.busId;
+
+                    window.app.showToast(`מעבד תלמיד ${i + 1} מתוך ${students.length}...`, 'info');
+
+                    try {
+                        const bestBus = await window.mapsService.findBestBusForAddress(student.address);
+
+                        if (bestBus) {
+                            student.busId = bestBus.id;
+                            await window.storage.saveStudent(student);
+
+                            if (previousBusId !== bestBus.id) {
+                                successCount++;
+                            } else {
+                                unchangedCount++;
+                            }
+                        } else {
+                            failCount++;
+                        }
+                    } catch (error) {
+                        console.error(`Error reassigning student ${student.id}:`, error);
+                        failCount++;
+                    }
+                }
+
+                // Reload students
+                await this.loadStudents();
+                window.app.updateDashboardStats();
+
+                // Reload buses to update student count
+                if (window.busManager) {
+                    window.busManager.renderBusesList();
+                }
+
+                // Show summary
+                let summaryMessage = `שיוך מחדש הושלם!\n`;
+                if (successCount > 0) summaryMessage += `${successCount} תלמידים שויכו מחדש. `;
+                if (unchangedCount > 0) summaryMessage += `${unchangedCount} נשארו באותו אוטובוס. `;
+                if (failCount > 0) summaryMessage += `${failCount} נכשלו.`;
+
+                window.app.showToast(summaryMessage, successCount > 0 ? 'success' : 'warning');
+
+            } catch (error) {
+                console.error('Error in reassignAllStudents:', error);
+                window.app.showToast('שגיאה בשיוך מחדש', 'error');
+            }
+        });
     }
 
     // Escape HTML to prevent XSS
