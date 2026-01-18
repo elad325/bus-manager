@@ -412,6 +412,7 @@ class App {
                         <button class="btn btn-danger btn-sm reject-user-btn" data-user-id="${this.escapeHtml(user.uid)}">✗ דחה</button>
                     </div>
                 </div>
+
             `).join('');
             html += '</div>';
         }
@@ -438,12 +439,25 @@ class App {
         usersList.innerHTML = html;
 
         // Add event listeners to role selects
+
+                ${user.uid !== window.auth.getUser()?.uid ? `
+                <select class="select-input user-role-select" style="width: auto;" data-user-id="${this.escapeHtml(user.uid)}">
+                    <option value="viewer" ${user.role === 'viewer' ? 'selected' : ''}>צופה</option>
+                    <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>מנהל</option>
+                </select>
+                ` : ''}
+            </div>
+        `).join('');
+
+        // Add event listeners to role selects (safer than inline onchange)
+
         usersList.querySelectorAll('.user-role-select').forEach(select => {
             select.addEventListener('change', (e) => {
                 const uid = e.target.getAttribute('data-user-id');
                 this.updateUserRole(uid, e.target.value);
             });
         });
+
 
         // Add event listeners to approve buttons
         usersList.querySelectorAll('.approve-user-btn').forEach(btn => {
@@ -460,6 +474,8 @@ class App {
                 this.rejectUser(uid);
             });
         });
+
+
     }
 
     // Update user role
