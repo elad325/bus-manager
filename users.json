@@ -7,6 +7,14 @@
       "role": "admin",
       "approved": true,
       "createdAt": "2026-01-18T19:11:30.590Z"
+    },
+    {
+      "uid": "local_1768763586152",
+      "email": "admin@test.com",
+      "password": "MTIzNDU2",
+      "role": "viewer",
+      "approved": false,
+      "createdAt": "2026-01-18T19:13:06.152Z"
     }
   ]
 }
