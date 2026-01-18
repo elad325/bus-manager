@@ -1,74 +1,18 @@
 // ===================================
 // מערכת ניהול אוטובוסים - אימות משתמשים
 // ===================================
-// משתמש ב-Firebase Users DB נפרד
+// אימות פשוט מבוסס localStorage
 // ===================================
 
 class AuthService {
     constructor() {
         this.currentUser = null;
         this.isAdmin = false;
-        this.auth = null;
-        this.usersDb = null;     // 👥 Users DB
-        this.useFirebase = false;
         this.onAuthChangeCallback = null;
     }
 
-    // Initialize Firebase Auth and Users DB
-    async init(usersFirestore = null) {
-        const config = getFirebaseUsersConfig();
-
-        if (isFirebaseUsersConfigured()) {
-            try {
-                // Initialize Firebase Users app
-                let usersApp;
-                const existingApp = firebase.apps.find(app => app.name === 'users');
-                if (existingApp) {
-                    usersApp = existingApp;
-                } else {
-                    usersApp = firebase.initializeApp(config, 'users');
-                }
-
-                this.auth = usersApp.auth();
-                this.useFirebase = true;
-
-                // Use provided Firestore or create one
-                if (usersFirestore) {
-                    this.usersDb = usersFirestore;
-                } else {
-                    this.usersDb = usersApp.firestore();
-                }
-
-                console.log('👥 Users DB initialized');
-
-                // Listen for auth state changes
-                this.auth.onAuthStateChanged(async (user) => {
-                    if (user) {
-                        await this.handleUserSignIn(user);
-                    } else {
-                        this.currentUser = null;
-                        this.isAdmin = false;
-                    }
-
-                    if (this.onAuthChangeCallback) {
-                        this.onAuthChangeCallback(this.currentUser, this.isAdmin);
-                    }
-                });
-
-                return true;
-            } catch (error) {
-                console.error('Error initializing Firebase Auth:', error);
-                return this.initLocalAuth();
-            }
-        }
-
-        return this.initLocalAuth();
-    }
-
-    // Initialize local auth (for demo/offline mode)
-    initLocalAuth() {
-        this.useFirebase = false;
-
+    // Initialize Auth
+    async init() {
         // Check for stored user session
         const storedUser = localStorage.getItem(APP_CONFIG.localStoragePrefix + APP_CONFIG.keys.currentUser);
         if (storedUser) {
@@ -88,71 +32,9 @@ class AuthService {
         return true;
     }
 
-    // Handle user sign in
-    async handleUserSignIn(firebaseUser) {
-        let userData = await window.storage.getUserByUid(firebaseUser.uid);
-
-        if (!userData) {
-            // First user is admin and auto-approved, others need approval
-            const users = await window.storage.getUsers();
-            const isFirstUser = users.length === 0;
-
-            userData = {
-                uid: firebaseUser.uid,
-                email: firebaseUser.email,
-                role: isFirstUser ? 'admin' : 'viewer',
-                approved: isFirstUser, // First user is auto-approved
-                createdAt: new Date().toISOString()
-            };
-
-            await window.storage.saveUser(userData);
-
-            // If not first user, show pending message
-            if (!isFirstUser) {
-                this.currentUser = null;
-                this.isAdmin = false;
-                if (this.onAuthChangeCallback) {
-                    this.onAuthChangeCallback(null, false, 'pending');
-                }
-                return;
-            }
-        }
-
-        // Check if user is approved
-        if (!userData.approved) {
-            this.currentUser = null;
-            this.isAdmin = false;
-            if (this.onAuthChangeCallback) {
-                this.onAuthChangeCallback(null, false, 'pending');
-            }
-            return;
-        }
-
-        this.currentUser = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            role: userData.role
-        };
-        this.isAdmin = userData.role === 'admin';
-    }
-
     // Register new user
     async register(email, password) {
-        if (this.useFirebase && this.auth) {
-            try {
-                const result = await this.auth.createUserWithEmailAndPassword(email, password);
-                return { success: true, user: result.user };
-            } catch (error) {
-                return { success: false, error: this.getErrorMessage(error.code) };
-            }
-        }
-
-        // Local registration
-        return this.localRegister(email, password);
-    }
-
-    async localRegister(email, password) {
-        const users = window.storage.getLocalUsers();
+        const users = await window.storage.getUsers();
 
         // Check if email exists
         if (users.some(u => u.email === email)) {
@@ -176,7 +58,7 @@ class AuthService {
             createdAt: new Date().toISOString()
         };
 
-        window.storage.saveLocalUser(user);
+        await window.storage.saveUser(user);
 
         // Only set as current user if approved
         if (user.approved) {
@@ -204,21 +86,7 @@ class AuthService {
 
     // Login
     async login(email, password) {
-        if (this.useFirebase && this.auth) {
-            try {
-                const result = await this.auth.signInWithEmailAndPassword(email, password);
-                return { success: true, user: result.user };
-            } catch (error) {
-                return { success: false, error: this.getErrorMessage(error.code) };
-            }
-        }
-
-        // Local login
-        return this.localLogin(email, password);
-    }
-
-    async localLogin(email, password) {
-        const users = window.storage.getLocalUsers();
+        const users = await window.storage.getUsers();
         const user = users.find(u => u.email === email);
 
         if (!user) {
@@ -254,14 +122,6 @@ class AuthService {
 
     // Logout
     async logout() {
-        if (this.useFirebase && this.auth) {
-            try {
-                await this.auth.signOut();
-            } catch (error) {
-                console.error('Error signing out:', error);
-            }
-        }
-
         this.currentUser = null;
         this.isAdmin = false;
 
@@ -280,22 +140,6 @@ class AuthService {
         if (this.currentUser) {
             callback(this.currentUser, this.isAdmin);
         }
-    }
-
-    // Get error message in Hebrew
-    getErrorMessage(errorCode) {
-        const messages = {
-            'auth/email-already-in-use': 'האימייל כבר קיים במערכת',
-            'auth/invalid-email': 'כתובת אימייל לא תקינה',
-            'auth/operation-not-allowed': 'פעולה זו אינה מורשית',
-            'auth/weak-password': 'הסיסמה חלשה מדי',
-            'auth/user-disabled': 'החשבון הושבת',
-            'auth/user-not-found': 'משתמש לא נמצא',
-            'auth/wrong-password': 'סיסמה שגויה',
-            'auth/too-many-requests': 'יותר מדי ניסיונות, נסה שוב מאוחר יותר'
-        };
-
-        return messages[errorCode] || 'אירעה שגיאה, נסה שוב';
     }
 
     // Check if user is logged in

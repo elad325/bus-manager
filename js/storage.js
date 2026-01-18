@@ -1,58 +1,29 @@
 // ===================================
 // מערכת ניהול אוטובוסים - אחסון נתונים
 // ===================================
-// תומך בשלושה Firebase databases נפרדים:
-// 1. Users DB - משתמשים
-// 2. Data DB - תלמידים ואוטובוסים
-// 3. Settings DB - הגדרות
+// משתמש ב-3 מסדי נתונים JSON נפרדים:
+// 1. users.json - משתמשים
+// 2. data.json - תלמידים ואוטובוסים
+// 3. settings.json - הגדרות API
 // ===================================
 
 class StorageService {
     constructor() {
+        this.apiUrl = window.location.origin; // Same server
         this.prefix = APP_CONFIG.localStoragePrefix;
-        this.useFirebase = false;
-        this.usersDb = null;     // 👥 Users DB - משתמשים
-        this.dataDb = null;      // 🚌 Data DB - תלמידים ואוטובוסים
-        this.settingsDb = null;  // ⚙️ Settings DB - הגדרות
-        this.db = null;          // Backward compatibility
-    }
-
-    // Initialize with Firebase databases
-    // usersFirestore - for users
-    // dataFirestore - for buses and students
-    // settingsFirestore - for settings
-    init(dataFirestore = null, settingsFirestore = null, usersFirestore = null) {
-        if (usersFirestore) {
-            this.usersDb = usersFirestore;
-            console.log('👥 Users DB initialized in storage');
-        }
-
-        if (dataFirestore) {
-            this.dataDb = dataFirestore;
-            this.db = dataFirestore; // Backward compatibility
-            this.useFirebase = true;
-            console.log('🚌 Data DB initialized in storage');
-        }
-
-        if (settingsFirestore) {
-            this.settingsDb = settingsFirestore;
-            console.log('⚙️ Settings DB initialized in storage');
-        }
     }
 
     // ===== BUSES =====
 
     async getBuses() {
-        if (this.dataDb) {
-            try {
-                const snapshot = await this.dataDb.collection('buses').get();
-                return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            } catch (error) {
-                console.error('Error getting buses from Firebase:', error);
-                return this.getLocalBuses();
-            }
+        try {
+            const response = await fetch(`${this.apiUrl}/api/buses`);
+            if (!response.ok) throw new Error('Failed to fetch buses');
+            return await response.json();
+        } catch (error) {
+            console.error('Error getting buses:', error);
+            return this.getLocalBuses();
         }
-        return this.getLocalBuses();
     }
 
     getLocalBuses() {
@@ -61,32 +32,29 @@ class StorageService {
     }
 
     async saveBus(bus) {
-        if (this.dataDb) {
-            try {
-                if (bus.id) {
-                    await this.dataDb.collection('buses').doc(bus.id).set(bus);
-                } else {
-                    const docRef = await this.dataDb.collection('buses').add(bus);
-                    bus.id = docRef.id;
-                }
-                return bus;
-            } catch (error) {
-                console.error('Error saving bus to Firebase:', error);
-                return this.saveLocalBus(bus);
-            }
+        try {
+            const response = await fetch(`${this.apiUrl}/api/buses`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(bus)
+            });
+            if (!response.ok) throw new Error('Failed to save bus');
+            return await response.json();
+        } catch (error) {
+            console.error('Error saving bus:', error);
+            return this.saveLocalBus(bus);
         }
-        return this.saveLocalBus(bus);
     }
 
     saveLocalBus(bus) {
         const buses = this.getLocalBuses();
-        if (!bus.id) {
-            bus.id = 'bus_' + Date.now();
-        }
         const index = buses.findIndex(b => b.id === bus.id);
         if (index >= 0) {
             buses[index] = bus;
         } else {
+            if (!bus.id) {
+                bus.id = 'bus_' + Date.now();
+            }
             buses.push(bus);
         }
         localStorage.setItem(this.prefix + APP_CONFIG.keys.buses, JSON.stringify(buses));
@@ -94,16 +62,16 @@ class StorageService {
     }
 
     async deleteBus(busId) {
-        if (this.dataDb) {
-            try {
-                await this.dataDb.collection('buses').doc(busId).delete();
-                return true;
-            } catch (error) {
-                console.error('Error deleting bus from Firebase:', error);
-                return this.deleteLocalBus(busId);
-            }
+        try {
+            const response = await fetch(`${this.apiUrl}/api/buses/${busId}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) throw new Error('Failed to delete bus');
+            return true;
+        } catch (error) {
+            console.error('Error deleting bus:', error);
+            return this.deleteLocalBus(busId);
         }
-        return this.deleteLocalBus(busId);
     }
 
     deleteLocalBus(busId) {
@@ -115,16 +83,14 @@ class StorageService {
     // ===== STUDENTS =====
 
     async getStudents() {
-        if (this.dataDb) {
-            try {
-                const snapshot = await this.dataDb.collection('students').get();
-                return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            } catch (error) {
-                console.error('Error getting students from Firebase:', error);
-                return this.getLocalStudents();
-            }
+        try {
+            const response = await fetch(`${this.apiUrl}/api/students`);
+            if (!response.ok) throw new Error('Failed to fetch students');
+            return await response.json();
+        } catch (error) {
+            console.error('Error getting students:', error);
+            return this.getLocalStudents();
         }
-        return this.getLocalStudents();
     }
 
     getLocalStudents() {
@@ -132,38 +98,30 @@ class StorageService {
         return data ? JSON.parse(data) : [];
     }
 
-    async getStudentsByBus(busId) {
-        const students = await this.getStudents();
-        return students.filter(s => s.busId === busId);
-    }
-
     async saveStudent(student) {
-        if (this.dataDb) {
-            try {
-                if (student.id) {
-                    await this.dataDb.collection('students').doc(student.id).set(student);
-                } else {
-                    const docRef = await this.dataDb.collection('students').add(student);
-                    student.id = docRef.id;
-                }
-                return student;
-            } catch (error) {
-                console.error('Error saving student to Firebase:', error);
-                return this.saveLocalStudent(student);
-            }
+        try {
+            const response = await fetch(`${this.apiUrl}/api/students`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(student)
+            });
+            if (!response.ok) throw new Error('Failed to save student');
+            return await response.json();
+        } catch (error) {
+            console.error('Error saving student:', error);
+            return this.saveLocalStudent(student);
         }
-        return this.saveLocalStudent(student);
     }
 
     saveLocalStudent(student) {
         const students = this.getLocalStudents();
-        if (!student.id) {
-            student.id = 'student_' + Date.now();
-        }
         const index = students.findIndex(s => s.id === student.id);
         if (index >= 0) {
             students[index] = student;
         } else {
+            if (!student.id) {
+                student.id = 'student_' + Date.now();
+            }
             students.push(student);
         }
         localStorage.setItem(this.prefix + APP_CONFIG.keys.students, JSON.stringify(students));
@@ -171,16 +129,16 @@ class StorageService {
     }
 
     async deleteStudent(studentId) {
-        if (this.dataDb) {
-            try {
-                await this.dataDb.collection('students').doc(studentId).delete();
-                return true;
-            } catch (error) {
-                console.error('Error deleting student from Firebase:', error);
-                return this.deleteLocalStudent(studentId);
-            }
+        try {
+            const response = await fetch(`${this.apiUrl}/api/students/${studentId}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) throw new Error('Failed to delete student');
+            return true;
+        } catch (error) {
+            console.error('Error deleting student:', error);
+            return this.deleteLocalStudent(studentId);
         }
-        return this.deleteLocalStudent(studentId);
     }
 
     deleteLocalStudent(studentId) {
@@ -192,16 +150,14 @@ class StorageService {
     // ===== USERS =====
 
     async getUsers() {
-        if (this.usersDb) {
-            try {
-                const snapshot = await this.usersDb.collection('users').get();
-                return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            } catch (error) {
-                console.error('Error getting users from Firebase:', error);
-                return this.getLocalUsers();
-            }
+        try {
+            const response = await fetch(`${this.apiUrl}/api/users`);
+            if (!response.ok) throw new Error('Failed to fetch users');
+            return await response.json();
+        } catch (error) {
+            console.error('Error getting users:', error);
+            return this.getLocalUsers();
         }
-        return this.getLocalUsers();
     }
 
     getLocalUsers() {
@@ -210,20 +166,18 @@ class StorageService {
     }
 
     async saveUser(user) {
-        if (this.usersDb) {
-            try {
-                await this.usersDb.collection('users').doc(user.uid).set({
-                    email: user.email,
-                    role: user.role,
-                    createdAt: user.createdAt || new Date().toISOString()
-                });
-                return user;
-            } catch (error) {
-                console.error('Error saving user to Firebase:', error);
-                return this.saveLocalUser(user);
-            }
+        try {
+            const response = await fetch(`${this.apiUrl}/api/users`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(user)
+            });
+            if (!response.ok) throw new Error('Failed to save user');
+            return await response.json();
+        } catch (error) {
+            console.error('Error saving user:', error);
+            return this.saveLocalUser(user);
         }
-        return this.saveLocalUser(user);
     }
 
     saveLocalUser(user) {
@@ -239,68 +193,71 @@ class StorageService {
     }
 
     async getUserByUid(uid) {
-        if (this.usersDb) {
-            try {
-                const doc = await this.usersDb.collection('users').doc(uid).get();
-                if (doc.exists) {
-                    return { id: doc.id, ...doc.data() };
-                }
-            } catch (error) {
-                console.error('Error getting user from Firebase:', error);
-            }
+        try {
+            const response = await fetch(`${this.apiUrl}/api/users/${uid}`);
+            if (response.status === 404) return null;
+            if (!response.ok) throw new Error('Failed to fetch user');
+            return await response.json();
+        } catch (error) {
+            console.error('Error getting user:', error);
+            const users = this.getLocalUsers();
+            return users.find(u => u.uid === uid) || null;
         }
-        const users = this.getLocalUsers();
-        return users.find(u => u.uid === uid) || null;
     }
 
     async updateUserRole(uid, role) {
-        if (this.usersDb) {
-            try {
-                await this.usersDb.collection('users').doc(uid).update({ role });
-                return true;
-            } catch (error) {
-                console.error('Error updating user role:', error);
+        try {
+            const response = await fetch(`${this.apiUrl}/api/users/${uid}/role`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role })
+            });
+            if (!response.ok) throw new Error('Failed to update role');
+            return true;
+        } catch (error) {
+            console.error('Error updating user role:', error);
+            const users = this.getLocalUsers();
+            const user = users.find(u => u.uid === uid);
+            if (user) {
+                user.role = role;
+                localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
             }
+            return true;
         }
-        const users = this.getLocalUsers();
-        const user = users.find(u => u.uid === uid);
-        if (user) {
-            user.role = role;
-            localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
-        }
-        return true;
     }
 
     async approveUser(uid) {
-        if (this.usersDb) {
-            try {
-                await this.usersDb.collection('users').doc(uid).update({ approved: true });
-                return true;
-            } catch (error) {
-                console.error('Error approving user:', error);
+        try {
+            const response = await fetch(`${this.apiUrl}/api/users/${uid}/approve`, {
+                method: 'PATCH'
+            });
+            if (!response.ok) throw new Error('Failed to approve user');
+            return true;
+        } catch (error) {
+            console.error('Error approving user:', error);
+            const users = this.getLocalUsers();
+            const user = users.find(u => u.uid === uid);
+            if (user) {
+                user.approved = true;
+                localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
             }
+            return true;
         }
-        const users = this.getLocalUsers();
-        const user = users.find(u => u.uid === uid);
-        if (user) {
-            user.approved = true;
-            localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
-        }
-        return true;
     }
 
     async rejectUser(uid) {
-        if (this.usersDb) {
-            try {
-                await this.usersDb.collection('users').doc(uid).delete();
-                return true;
-            } catch (error) {
-                console.error('Error rejecting user:', error);
-            }
+        try {
+            const response = await fetch(`${this.apiUrl}/api/users/${uid}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) throw new Error('Failed to reject user');
+            return true;
+        } catch (error) {
+            console.error('Error rejecting user:', error);
+            const users = this.getLocalUsers().filter(u => u.uid !== uid);
+            localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
+            return true;
         }
-        const users = this.getLocalUsers().filter(u => u.uid !== uid);
-        localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
-        return true;
     }
 
     async getPendingUsers() {
@@ -310,40 +267,35 @@ class StorageService {
 
     // ===== SETTINGS =====
 
-    // Get settings from Settings DB or localStorage
     async getSettings() {
-        // First, try to get from Settings DB (separate database)
-        if (this.settingsDb) {
-            try {
-                const doc = await this.settingsDb.collection('settings').doc('app_settings').get();
-                if (doc.exists) {
-                    console.log('⚙️ Using settings from Settings DB');
-                    return doc.data();
-                }
-            } catch (error) {
-                console.error('Error getting settings from Settings DB:', error);
-            }
+        try {
+            const response = await fetch(`${this.apiUrl}/api/settings`);
+            if (!response.ok) throw new Error('Failed to fetch settings');
+            return await response.json();
+        } catch (error) {
+            console.error('Error getting settings:', error);
+            const data = localStorage.getItem(this.prefix + APP_CONFIG.keys.settings);
+            return data ? JSON.parse(data) : {};
         }
-
-        // Fallback to localStorage
-        const data = localStorage.getItem(this.prefix + APP_CONFIG.keys.settings);
-        return data ? JSON.parse(data) : {};
     }
 
-    // Save settings to both Settings DB and localStorage
     async saveSettings(settings) {
-        // Save to Settings DB if available
-        if (this.settingsDb) {
-            try {
-                await this.settingsDb.collection('settings').doc('app_settings').set(settings, { merge: true });
-                console.log('⚙️ Settings saved to Settings DB');
-            } catch (error) {
-                console.error('Error saving settings to Settings DB:', error);
-            }
-        }
+        try {
+            const response = await fetch(`${this.apiUrl}/api/settings`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            });
+            if (!response.ok) throw new Error('Failed to save settings');
 
-        // Always save to localStorage as backup
-        localStorage.setItem(this.prefix + APP_CONFIG.keys.settings, JSON.stringify(settings));
+            // Also save to localStorage as backup
+            localStorage.setItem(this.prefix + APP_CONFIG.keys.settings, JSON.stringify(settings));
+            return true;
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            localStorage.setItem(this.prefix + APP_CONFIG.keys.settings, JSON.stringify(settings));
+            return true;
+        }
     }
 
     // ===== STATS =====

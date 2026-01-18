@@ -10,168 +10,83 @@
 - 📊 ייבוא תלמידים מ-Excel
 - 🗺️ אופטימיזציה אוטומטית של מסלולים
 - 📱 ממשק רספונסיבי
-- ☁️ תמיכה ב-Firebase או מצב מקומי
+- 💾 **3 מסדי נתונים JSON נפרדים ב-Git!**
 
-## 🔧 התקנה והגדרה
+## 🏗️ ארכיטקטורה
 
-### 1. הגדרת API Keys (אופציונלי אבל מומלץ)
+המערכת משתמשת ב-**3 קבצי JSON נפרדים** שנשמרים ב-Git:
 
-המערכת תומכת ב**3 מסדי נתונים נפרדים** להפרדה מלאה:
-- 👥 **Users DB** - משתמשים ואימות
-- 🚌 **Data DB** - תלמידים ואוטובוסים
-- ⚙️ **Settings DB** - הגדרות API
+| קובץ | תוכן | מטרה |
+|------|------|------|
+| 👥 **users.json** | משתמשים ואימות | ניהול משתמשים והרשאות |
+| 🚌 **data.json** | תלמידים ואוטובוסים | נתוני המערכת הראשיים |
+| ⚙️ **settings.json** | API Keys והגדרות | הגדרות שלא נמחקות! |
 
-#### **אפשרות א': קובץ קונפיגורציה מקומי** (מומלץ - לא יימחק!)
+**שרת Node.js** מספק API REST פשוט לקריאה/כתיבה של הקבצים.
 
-1. העתק את קובץ הדוגמה:
-   ```bash
-   cp config.local.js.example config.local.js
-   ```
+### למה זה טוב?
+- ✅ **כל הנתונים ב-Git** - ניתן לעשות commits, rollback, branching
+- ✅ **הגדרות לא נמחקות** - settings.json נפרד לגמרי
+- ✅ **פשוט ובלי תלות חיצונית** - בלי Firebase או cloud
+- ✅ **גיבוי אוטומטי** - Git הוא הגיבוי
+- ✅ **ניהול גרסאות** - כל שינוי נשמר ב-Git history
 
-2. ערוך את `config.local.js` והכנס את המפתחות שלך:
-   ```javascript
-   window.LOCAL_CONFIG = {
-       // 👥 Firebase למשתמשים (Users DB)
-       firebaseUsers: {
-           apiKey: "YOUR_FIREBASE_API_KEY",
-           authDomain: "YOUR_USERS_PROJECT.firebaseapp.com",
-           projectId: "YOUR_USERS_PROJECT_ID",
-           // ...
-       },
+## 🚀 התקנה והרצה
 
-       // 🚌 Firebase לתלמידים ואוטובוסים (Data DB)
-       firebaseData: {
-           apiKey: "YOUR_FIREBASE_API_KEY",
-           authDomain: "YOUR_DATA_PROJECT.firebaseapp.com",
-           projectId: "YOUR_DATA_PROJECT_ID",
-           // ...
-       },
+### דרישות מקדימות
+- Node.js גרסה 16 ומעלה
+- Git
 
-       // ⚙️ Firebase להגדרות (Settings DB)
-       firebaseSettings: {
-           apiKey: "YOUR_FIREBASE_API_KEY",
-           authDomain: "YOUR_SETTINGS_PROJECT.firebaseapp.com",
-           projectId: "YOUR_SETTINGS_PROJECT_ID",
-           // ...
-       },
+### שלב 1: התקנת dependencies
 
-       googleMaps: {
-           apiKey: "YOUR_GOOGLE_MAPS_API_KEY"
-       },
-       googleSheets: {
-           apiKey: "YOUR_GOOGLE_SHEETS_API_KEY",
-           clientId: "YOUR_CLIENT_ID.apps.googleusercontent.com",
-           spreadsheetId: "YOUR_SPREADSHEET_ID"
-       }
-   };
-   ```
-
-3. **הקובץ לא יועלה ל-Git** - ההגדרות שלך יישארו במחשב! 🔒
-
-**💡 טיפ**: אם אתה רוצה להשתמש באותו Firebase Project לכל 3 ה-DBs, פשוט העתק את אותם פרטי Firebase לשלושת הקונפיגורציות!
-
-#### **אפשרות ב': דרך ממשק ההגדרות**
-
-1. פתח את האפליקציה
-2. עבור לעמוד ההגדרות
-3. הזן את ה-API Keys
-4. ההגדרות יישמרו ב-localStorage ו-Firestore (אם מוגדר)
-
-### 2. סדרי עדיפויות בטעינת הגדרות
-
-המערכת טוענת הגדרות לפי הסדר הבא:
-
-1. 📁 **config.local.js** (קובץ מקומי - עדיפות ראשונה)
-   - 👥 `firebaseUsers` → Users DB
-   - 🚌 `firebaseData` → Data DB
-   - ⚙️ `firebaseSettings` → Settings DB
-2. ☁️ **Firestore** (כל DB נפרד - אם Firebase מוגדר)
-3. 💾 **localStorage** (גיבוי מקומי)
-
-זה אומר שאם יש לך `config.local.js`, המערכת תשתמש בו תמיד, ולא תשנה אותו!
-
-### 3. מבנה מסדי הנתונים
-
-המערכת משתמשת ב-3 Firebase databases נפרדים:
-
-| DB | מה נמצא בו | יתרונות |
-|----|-----------|---------|
-| 👥 **Users DB** | משתמשים, אימות, הרשאות | אבטחה, הפרדת גישות |
-| 🚌 **Data DB** | תלמידים, אוטובוסים, מסלולים | ביצועים, ניהול נפרד |
-| ⚙️ **Settings DB** | API Keys, הגדרות מערכת | לא נמחק, נפרד מנתונים |
-
-**למה זה חשוב?**
-- ✅ הגדרות לא נמחקות בטעות
-- ✅ אפשר לתת גישות שונות לכל DB
-- ✅ גיבוי נפרד לכל סוג נתונים
-- ✅ ביצועים טובים יותר
-
-### 4. הרצת האפליקציה
-
-#### **מצב פיתוח (מומלץ):**
 ```bash
-# עם Python 3
-python -m http.server 8000
-
-# או עם Node.js
-npx http-server -p 8000
+npm install
 ```
 
-פתח בדפדפן: `http://localhost:8000`
+### שלב 2: הרצת השרת
 
-#### **מצב מקומי:**
-פשוט פתח את `index.html` בדפדפן (חלק מהתכונות עשויות להיות מוגבלות)
+```bash
+npm start
+```
 
-## 👥 ניהול משתמשים
+השרת יעלה על `http://localhost:3000`
 
-### משתמש ראשון (אדמין)
+### שלב 3: פתיחת הדפדפן
 
-- המשתמש הראשון שנרשם הופך אוטומטית למנהל
-- מנהלים יכולים לאשר/לדחות משתמשים חדשים
+פתח את `http://localhost:3000` בדפדפן
 
-### משתמשים נוספים
+---
 
-- צריכים אישור ממנהל לפני שיוכלו להיכנס
-- יקבלו הודעה "החשבון ממתין לאישור"
-
-### תיקון בעיות משתמשים
-
-אם אתה לא יכול להתחבר, פתח את `fix-users.html` ב דפדפן:
-- 📊 תוכל לראות את כל המשתמשים
-- ✅ לאשר משתמשים קיימים
-- 🗑️ לנקות הכל ולהתחיל מחדש
-
-## 📚 מבנה הפרויקט
+## 📁 מבנה הפרויקט
 
 ```
 bus-manager/
+├── server.js                # שרת Node.js עם Express
+├── package.json             # Dependencies
+├── users.json              # 👥 DB למשתמשים
+├── data.json               # 🚌 DB לתלמידים ואוטובוסים
+├── settings.json           # ⚙️ DB להגדרות
 ├── index.html              # עמוד ראשי
-├── config.local.js         # הגדרות מקומיות (לא ב-git) 🔒
-├── config.local.js.example # דוגמה להגדרות
-├── fix-users.html          # כלי תיקון משתמשים
 ├── js/
-│   ├── config.js           # ניהול קונפיגורציה
-│   ├── storage.js          # ניהול אחסון (Firestore/localStorage)
-│   ├── auth.js             # אימות משתמשים
-│   ├── app.js              # לוגיקה ראשית
-│   ├── buses.js            # ניהול אוטובוסים
-│   ├── students.js         # ניהול תלמידים
-│   ├── routes.js           # ניהול מסלולים
-│   ├── maps.js             # אינטגרציה עם Google Maps
-│   └── sheets.js           # אינטגרציה עם Google Sheets
+│   ├── config.js          # ניהול קונפיגורציה
+│   ├── storage.js         # API client (fetch)
+│   ├── auth.js            # אימות משתמשים
+│   ├── app.js             # לוגיקה ראשית
+│   ├── buses.js           # ניהול אוטובוסים
+│   ├── students.js        # ניהול תלמידים
+│   ├── routes.js          # ניהול מסלולים
+│   ├── maps.js            # אינטגרציה עם Google Maps
+│   └── sheets.js          # אינטגרציה עם Google Sheets
 └── styles/
-    └── main.css            # עיצוב
+    └── main.css           # עיצוב
 ```
 
-## 🔑 קבלת API Keys
+---
 
-### Firebase (אופציונלי)
-1. היכנס ל-[Firebase Console](https://console.firebase.google.com/)
-2. צור פרויקט חדש
-3. הוסף אפליקציית Web
-4. העתק את פרטי ההגדרה
+## 🔑 הגדרת API Keys
 
-### Google Maps API
+### Google Maps API (חובה למפות)
+
 1. היכנס ל-[Google Cloud Console](https://console.cloud.google.com/)
 2. צור פרויקט חדש או בחר קיים
 3. הפעל את ה-APIs הבאים:
@@ -180,44 +95,168 @@ bus-manager/
    - Directions API
 4. צור API Key ב-Credentials
 
+5. **ערוך את `settings.json`:**
+
+```json
+{
+  "googleMaps": {
+    "apiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
+  },
+  "googleSheets": {
+    "apiKey": "",
+    "clientId": "",
+    "spreadsheetId": ""
+  }
+}
+```
+
+**לחלופין**, הגדר דרך ממשק המשתמש:
+- התחבר למערכת
+- עבור לעמוד "הגדרות"
+- הזן את ה-API Key
+- לחץ "שמור"
+
 ### Google Sheets API (אופציונלי)
+
+אם אתה רוצה אינטגרציה עם Google Sheets:
+
 1. באותו פרויקט ב-Google Cloud
 2. הפעל את Google Sheets API
 3. צור OAuth 2.0 Client ID
-4. העתק את Client ID ו-API Key
+4. העתק את Client ID ו-API Key ל-`settings.json`
 
-## 🛡️ אבטחה
+---
 
-- ✅ XSS Protection - כל קלט משתמש מנוטרל
-- ✅ קבצי הגדרות לא מועלים ל-Git
-- ✅ מערכת אישור משתמשים
-- ✅ הפרדה בין הגדרות לנתונים
+## 👥 ניהול משתמשים
+
+### משתמש ראשון (אדמין)
+
+- המשתמש הראשון שנרשם הופך אוטומטית למנהל ✅
+- מנהלים יכולים לאשר/לדחות משתמשים חדשים
+
+### משתמשים נוספים
+
+- צריכים אישור ממנהל לפני שיוכלו להיכנס ⏳
+- יקבלו הודעה "החשבון ממתין לאישור"
+
+### תיקון בעיות משתמשים
+
+אם אתה לא יכול להתחבר, פתח את `fix-users.html` בדפדפן:
+- 📊 תוכל לראות את כל המשתמשים
+- ✅ לאשר משתמשים קיימים
+- 🗑️ לנקות הכל ולהתחיל מחדש
+
+---
+
+## 🔄 עבודה עם Git
+
+### שמירת שינויים
+
+הנתונים נשמרים ב-3 קבצי JSON. כדי לשמור את השינויים ב-Git:
+
+```bash
+git add users.json data.json settings.json
+git commit -m "עדכון נתונים - הוספת 5 תלמידים חדשים"
+git push
+```
+
+### שחזור גרסה קודמת
+
+```bash
+# לראות היסטוריה
+git log --oneline
+
+# לחזור לגרסה מסוימת
+git checkout <commit-hash> -- data.json
+
+# או לבטל שינויים אחרונים
+git restore data.json
+```
+
+### סנכרון בין מחשבים
+
+```bash
+# במחשב 1
+git pull  # קבל שינויים אחרונים
+
+# עשה שינויים...
+
+git add *.json
+git commit -m "עדכון נתונים"
+git push
+
+# במחשב 2
+git pull  # קבל את השינויים
+```
+
+---
+
+## 🛠️ פיתוח
+
+### הרצה עם nodemon (reload אוטומטי)
+
+```bash
+npm run dev
+```
+
+### בדיקת תחביר
+
+```bash
+# בדיקת כל קבצי JavaScript
+for file in js/*.js; do node --check "$file"; done
+```
+
+### מבנה ה-API
+
+השרת מספק REST API:
+
+**Users:**
+- `GET /api/users` - כל המשתמשים
+- `GET /api/users/:uid` - משתמש לפי UID
+- `POST /api/users` - שמירת משתמש
+- `PATCH /api/users/:uid/role` - עדכון תפקיד
+- `PATCH /api/users/:uid/approve` - אישור משתמש
+- `DELETE /api/users/:uid` - מחיקת משתמש
+
+**Buses:**
+- `GET /api/buses` - כל האוטובוסים
+- `POST /api/buses` - שמירת אוטובוס
+- `DELETE /api/buses/:id` - מחיקת אוטובוס
+
+**Students:**
+- `GET /api/students` - כל התלמידים
+- `POST /api/students` - שמירת תלמיד
+- `DELETE /api/students/:id` - מחיקת תלמיד
+
+**Settings:**
+- `GET /api/settings` - הגדרות
+- `POST /api/settings` - שמירת הגדרות
+- `PATCH /api/settings` - עדכון חלקי
+
+---
 
 ## 🐛 פתרון בעיות
 
 ### "לא מצליח להתחבר"
 - פתח את `fix-users.html` ואשר את המשתמשים
-- בדוק שה-API Keys נכונים
+- בדוק שהשרת רץ (`npm start`)
 
 ### "המפות לא עובדות"
-- בדוק שהגדרת Google Maps API Key
+- בדוק שהגדרת Google Maps API Key ב-`settings.json`
 - בדוק שהפעלת את ה-APIs הנדרשים ב-Google Cloud
+- פתח Console בדפדפן (F12) וחפש שגיאות
 
-### "הנתונים נמחקים"
-- השתמש ב-`config.local.js` במקום להזין הגדרות בממשק
-- בדוק שלא מחקת את localStorage
+### "השרת לא עולה"
+- ודא ש-Node.js מותקן: `node --version`
+- ודא שהרצת `npm install`
+- בדוק שפורט 3000 לא תפוס: `lsof -i :3000` (Mac/Linux)
 
-### "שגיאות תחביר בדפדפן"
-- בדוק את ה-Console בדפדפן
-- ודא שכל קבצי ה-JS נטענים כראוי
+### "הנתונים לא נשמרים"
+- בדוק שהשרת רץ
+- בדוק את ה-Console בדפדפן לשגיאות
+- ודא שיש הרשאות כתיבה לקבצי JSON
 
-## 📞 תמיכה
-
-אם נתקלת בבעיה, בדוק:
-1. 🔍 Console בדפדפן (F12) - שגיאות
-2. 📁 הקובץ `config.local.js` קיים ותקין
-3. 🔑 ה-API Keys תקינים ופעילים
-4. 🌐 יש חיבור לאינטרנט (אם משתמש ב-Firebase/Google APIs)
+---
 
 ## 📄 רישיון
 
@@ -225,4 +264,16 @@ MIT License - חופשי לשימוש ושינוי
 
 ---
 
-💡 **טיפ**: שמור את הקובץ `config.local.js` בגיבוי נפרד כדי שלא תאבד את ההגדרות!
+## 🙏 תודות
+
+- Google Maps API למפות ו-geocoding
+- SheetJS לייבוא Excel
+- Express לשרת פשוט ומהיר
+
+---
+
+💡 **טיפ**: עשה backup של קבצי ה-JSON לפני עדכונים גדולים!
+
+```bash
+cp data.json data.json.backup
+```
