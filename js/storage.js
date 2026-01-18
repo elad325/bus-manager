@@ -248,6 +248,43 @@ class StorageService {
         return true;
     }
 
+    async approveUser(uid) {
+        if (this.useFirebase && this.db) {
+            try {
+                await this.db.collection('users').doc(uid).update({ approved: true });
+                return true;
+            } catch (error) {
+                console.error('Error approving user:', error);
+            }
+        }
+        const users = this.getLocalUsers();
+        const user = users.find(u => u.uid === uid);
+        if (user) {
+            user.approved = true;
+            localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
+        }
+        return true;
+    }
+
+    async rejectUser(uid) {
+        if (this.useFirebase && this.db) {
+            try {
+                await this.db.collection('users').doc(uid).delete();
+                return true;
+            } catch (error) {
+                console.error('Error rejecting user:', error);
+            }
+        }
+        const users = this.getLocalUsers().filter(u => u.uid !== uid);
+        localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
+        return true;
+    }
+
+    async getPendingUsers() {
+        const users = await this.getUsers();
+        return users.filter(u => !u.approved);
+    }
+
     // ===== SETTINGS =====
 
     getSettings() {

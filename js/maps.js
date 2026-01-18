@@ -10,6 +10,7 @@ class MapsService {
         this.directionsService = null;
         this.directionsRenderer = null;
         this.geocoder = null;
+        this.geocodeCache = {}; // Cache for geocoding results
     }
 
     // Initialize Google Maps
@@ -144,27 +145,43 @@ class MapsService {
         ];
     }
 
-    // Geocode address to coordinates
+    // Geocode address to coordinates (with caching)
     async geocodeAddress(address) {
         if (!this.geocoder) {
             console.error('Geocoder not initialized');
             return null;
         }
 
+        // Check cache first
+        const cacheKey = address.toLowerCase().trim();
+        if (this.geocodeCache[cacheKey]) {
+            console.log(`Using cached geocode for: ${address}`);
+            return this.geocodeCache[cacheKey];
+        }
+
         return new Promise((resolve) => {
             this.geocoder.geocode({ address: address + ', ישראל' }, (results, status) => {
                 if (status === 'OK' && results[0]) {
-                    resolve({
+                    const result = {
                         lat: results[0].geometry.location.lat(),
                         lng: results[0].geometry.location.lng(),
                         formattedAddress: results[0].formatted_address
-                    });
+                    };
+                    // Save to cache
+                    this.geocodeCache[cacheKey] = result;
+                    resolve(result);
                 } else {
                     console.error('Geocode failed:', status);
                     resolve(null);
                 }
             });
         });
+    }
+
+    // Clear geocode cache (useful if addresses change)
+    clearGeocodeCache() {
+        this.geocodeCache = {};
+        console.log('Geocode cache cleared');
     }
 
     // Calculate optimized route
