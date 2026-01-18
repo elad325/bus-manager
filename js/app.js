@@ -392,13 +392,21 @@ class App {
                     <span class="user-role-badge">${user.role === 'admin' ? 'מנהל' : 'צופה'}</span>
                 </div>
                 ${user.uid !== window.auth.getUser()?.uid ? `
-                <select class="select-input" style="width: auto;" data-user-id="${user.uid}" onchange="app.updateUserRole('${user.uid}', this.value)">
+                <select class="select-input user-role-select" style="width: auto;" data-user-id="${this.escapeHtml(user.uid)}">
                     <option value="viewer" ${user.role === 'viewer' ? 'selected' : ''}>צופה</option>
                     <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>מנהל</option>
                 </select>
                 ` : ''}
             </div>
         `).join('');
+
+        // Add event listeners to role selects (safer than inline onchange)
+        usersList.querySelectorAll('.user-role-select').forEach(select => {
+            select.addEventListener('change', (e) => {
+                const uid = e.target.getAttribute('data-user-id');
+                this.updateUserRole(uid, e.target.value);
+            });
+        });
     }
 
     // Update user role
