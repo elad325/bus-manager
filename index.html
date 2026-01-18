@@ -13,6 +13,8 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <!-- SheetJS for Excel import -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
 
 <body>
@@ -164,8 +166,11 @@
                     <div class="page-header">
                         <h1>ניהול תלמידים</h1>
                         <div class="header-actions" style="display: flex; gap: 0.5rem;">
+                            <button id="import-excel-btn" class="btn btn-secondary admin-only">
+                                <span>📊</span> ייבא מ-Excel
+                            </button>
                             <button id="reassign-all-students-btn" class="btn btn-secondary admin-only">
-                                <span>🔄</span> שייך מחדש את כל התלמידים
+                                <span>🔄</span> שייך מחדש
                             </button>
                             <button id="add-student-btn" class="btn btn-primary admin-only">
                                 <span>+</span> הוסף תלמיד
@@ -371,6 +376,52 @@
                         <button type="submit" class="btn btn-primary">שמור</button>
                     </div>
                 </form>
+            </div>
+
+            <!-- Excel Import Modal -->
+            <div id="excel-import-modal" class="modal hidden">
+                <div class="modal-header">
+                    <h2>ייבוא תלמידים מ-Excel</h2>
+                    <button class="modal-close" data-close="excel-import-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="excel-file-input">בחר קובץ Excel או CSV</label>
+                        <input type="file" id="excel-file-input" accept=".xlsx,.xls,.csv" class="file-input">
+                        <small>תומך בפורמט Excel (.xlsx, .xls) ו-CSV</small>
+                    </div>
+                    <div id="excel-preview" class="hidden" style="margin-top: 1rem;">
+                        <h3>בחר עמודות לייבוא:</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="excel-firstname-col">עמודת שם פרטי</label>
+                                <select id="excel-firstname-col" class="select-input">
+                                    <option value="">בחר עמודה...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="excel-lastname-col">עמודת שם משפחה</label>
+                                <select id="excel-lastname-col" class="select-input">
+                                    <option value="">בחר עמודה...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="excel-address-col">עמודת כתובת/מיקום</label>
+                            <select id="excel-address-col" class="select-input">
+                                <option value="">בחר עמודה...</option>
+                            </select>
+                        </div>
+                        <div style="margin-top: 1rem; padding: 1rem; background: rgba(99, 102, 241, 0.1); border-radius: 0.5rem;">
+                            <p><strong>תצוגה מקדימה:</strong></p>
+                            <p id="excel-preview-text" style="font-size: 0.9rem; color: var(--text-muted);"></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" data-close="excel-import-modal">ביטול</button>
+                    <button type="button" id="import-excel-confirm-btn" class="btn btn-primary hidden">ייבא תלמידים</button>
+                </div>
             </div>
 
             <!-- Confirm Modal -->

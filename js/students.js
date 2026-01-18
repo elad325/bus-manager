@@ -34,6 +34,12 @@ class StudentManager {
             reassignAllBtn.addEventListener('click', () => this.reassignAllStudents());
         }
 
+        // Import Excel button
+        const importExcelBtn = document.getElementById('import-excel-btn');
+        if (importExcelBtn) {
+            importExcelBtn.addEventListener('click', () => this.openExcelImportModal());
+        }
+
         // Student form submit
         const studentForm = document.getElementById('student-form');
         if (studentForm) {
@@ -379,6 +385,227 @@ class StudentManager {
                 window.app.showToast('שגיאה בשיוך מחדש', 'error');
             }
         });
+    }
+
+    // Open Excel import modal
+    openExcelImportModal() {
+        const modal = document.getElementById('excel-import-modal');
+        const overlay = document.getElementById('modal-overlay');
+        const fileInput = document.getElementById('excel-file-input');
+        const preview = document.getElementById('excel-preview');
+        const confirmBtn = document.getElementById('import-excel-confirm-btn');
+
+        // Reset
+        fileInput.value = '';
+        preview.classList.add('hidden');
+        confirmBtn.classList.add('hidden');
+        this.excelData = null;
+
+        // Setup file change listener
+        fileInput.onchange = (e) => this.handleExcelFile(e);
+
+        // Setup confirm button
+        confirmBtn.onclick = () => this.importExcelData();
+
+        // Setup close buttons
+        document.querySelectorAll('[data-close="excel-import-modal"]').forEach(btn => {
+            btn.onclick = () => {
+                modal.classList.add('hidden');
+                overlay.classList.add('hidden');
+            };
+        });
+
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+    }
+
+    // Handle Excel file upload
+    async handleExcelFile(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+            const data = await this.readExcelFile(file);
+            this.excelData = data;
+            this.showExcelPreview(data);
+        } catch (error) {
+            console.error('Error reading Excel file:', error);
+            window.app.showToast('שגיאה בקריאת הקובץ', 'error');
+        }
+    }
+
+    // Read Excel file
+    readExcelFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+
+                    // Get first sheet
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+
+                    // Convert to JSON
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    if (jsonData.length === 0) {
+                        reject(new Error('הקובץ ריק'));
+                        return;
+                    }
+
+                    // Get headers (first row)
+                    const headers = jsonData[0];
+                    const rows = jsonData.slice(1).filter(row => row.some(cell => cell)); // Remove empty rows
+
+                    resolve({ headers, rows });
+                } catch (error) {
+                    reject(error);
+                }
+            };
+
+            reader.onerror = () => reject(new Error('שגיאה בקריאת הקובץ'));
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    // Show Excel preview and column selection
+    showExcelPreview(data) {
+        const preview = document.getElementById('excel-preview');
+        const firstnameCol = document.getElementById('excel-firstname-col');
+        const lastnameCol = document.getElementById('excel-lastname-col');
+        const addressCol = document.getElementById('excel-address-col');
+        const previewText = document.getElementById('excel-preview-text');
+        const confirmBtn = document.getElementById('import-excel-confirm-btn');
+
+        // Populate column selectors
+        [firstnameCol, lastnameCol, addressCol].forEach(select => {
+            select.innerHTML = '<option value="">בחר עמודה...</option>';
+            data.headers.forEach((header, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = header || `עמודה ${index + 1}`;
+                select.appendChild(option);
+            });
+        });
+
+        // Auto-detect columns
+        data.headers.forEach((header, index) => {
+            const headerLower = (header || '').toLowerCase();
+            if (headerLower.includes('שם פרטי') || headerLower.includes('first') || headerLower.includes('name')) {
+                if (firstnameCol.value === '') firstnameCol.value = index;
+            }
+            if (headerLower.includes('שם משפחה') || headerLower.includes('last') || headerLower.includes('surname')) {
+                if (lastnameCol.value === '') lastnameCol.value = index;
+            }
+            if (headerLower.includes('כתובת') || headerLower.includes('address') || headerLower.includes('עיר') || headerLower.includes('city')) {
+                if (addressCol.value === '') addressCol.value = index;
+            }
+        });
+
+        // Update preview on column selection
+        const updatePreview = () => {
+            const fn = firstnameCol.value;
+            const ln = lastnameCol.value;
+            const addr = addressCol.value;
+
+            if (fn !== '' && ln !== '' && addr !== '') {
+                const sampleRows = data.rows.slice(0, 3);
+                const preview = sampleRows.map(row =>
+                    `${row[fn] || '?'} ${row[ln] || '?'} - ${row[addr] || '?'}`
+                ).join('<br>');
+                previewText.innerHTML = `נמצאו ${data.rows.length} תלמידים:<br>${preview}${data.rows.length > 3 ? '<br>...' : ''}`;
+                confirmBtn.classList.remove('hidden');
+            } else {
+                previewText.textContent = 'בחר את כל השדות הנדרשים';
+                confirmBtn.classList.add('hidden');
+            }
+        };
+
+        firstnameCol.onchange = updatePreview;
+        lastnameCol.onchange = updatePreview;
+        addressCol.onchange = updatePreview;
+
+        preview.classList.remove('hidden');
+        updatePreview();
+    }
+
+    // Import Excel data
+    async importExcelData() {
+        if (!this.excelData) return;
+
+        const firstnameCol = parseInt(document.getElementById('excel-firstname-col').value);
+        const lastnameCol = parseInt(document.getElementById('excel-lastname-col').value);
+        const addressCol = parseInt(document.getElementById('excel-address-col').value);
+
+        if (isNaN(firstnameCol) || isNaN(lastnameCol) || isNaN(addressCol)) {
+            window.app.showToast('יש לבחור את כל השדות', 'warning');
+            return;
+        }
+
+        try {
+            window.app.showToast('מייבא תלמידים...', 'info');
+
+            let imported = 0;
+            let failed = 0;
+
+            for (const row of this.excelData.rows) {
+                const firstName = (row[firstnameCol] || '').toString().trim();
+                const lastName = (row[lastnameCol] || '').toString().trim();
+                const address = (row[addressCol] || '').toString().trim();
+
+                if (!firstName || !lastName || !address) {
+                    failed++;
+                    continue;
+                }
+
+                try {
+                    const student = {
+                        firstName,
+                        lastName,
+                        address,
+                        busId: '' // Will be auto-assigned if Maps is configured
+                    };
+
+                    await window.storage.saveStudent(student);
+                    imported++;
+                } catch (error) {
+                    console.error('Error saving student:', error);
+                    failed++;
+                }
+            }
+
+            // Close modal
+            document.getElementById('excel-import-modal').classList.add('hidden');
+            document.getElementById('modal-overlay').classList.add('hidden');
+
+            // Reload students
+            await this.loadStudents();
+            window.app.updateDashboardStats();
+
+            // Show result
+            let message = `ייבוא הושלם! ${imported} תלמידים נוספו`;
+            if (failed > 0) {
+                message += `, ${failed} נכשלו`;
+            }
+            window.app.showToast(message, imported > 0 ? 'success' : 'warning');
+
+            // Ask if user wants to auto-assign buses
+            if (imported > 0 && window.mapsService.isReady()) {
+                setTimeout(() => {
+                    window.app.showConfirmModal(
+                        'האם ברצונך לשייך אוטומטית את התלמידים החדשים לאוטובוסים?',
+                        () => this.reassignAllStudents()
+                    );
+                }, 1000);
+            }
+
+        } catch (error) {
+            console.error('Error importing Excel:', error);
+            window.app.showToast('שגיאה בייבוא הנתונים', 'error');
+        }
     }
 
     // Escape HTML to prevent XSS

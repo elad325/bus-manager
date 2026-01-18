@@ -266,10 +266,18 @@ class App {
         const result = await window.auth.register(email, password);
 
         if (result.success) {
-            this.showMainApp();
-            this.showToast('החשבון נוצר בהצלחה!', 'success');
+            if (result.pending) {
+                // User registered but needs approval
+                errorEl.textContent = 'ההרשמה בוצעה בהצלחה! החשבון ממתין לאישור מנהל.';
+                errorEl.style.color = 'var(--warning)';
+                errorEl.classList.remove('hidden');
+            } else {
+                this.showMainApp();
+                this.showToast('החשבון נוצר בהצלחה!', 'success');
+            }
         } else {
             errorEl.textContent = result.error;
+            errorEl.style.color = 'var(--danger)';
             errorEl.classList.remove('hidden');
         }
     }
@@ -379,32 +387,77 @@ class App {
         if (!usersList) return;
 
         const users = await window.storage.getUsers();
+        const pendingUsers = users.filter(u => !u.approved);
+        const approvedUsers = users.filter(u => u.approved);
 
         if (users.length === 0) {
             usersList.innerHTML = '<p style="color: var(--text-muted);">אין משתמשים במערכת</p>';
             return;
         }
 
-        usersList.innerHTML = users.map(user => `
-            <div class="user-item">
-                <div class="user-info">
-                    <span class="user-email-display">${this.escapeHtml(user.email)}</span>
-                    <span class="user-role-badge">${user.role === 'admin' ? 'מנהל' : 'צופה'}</span>
-                </div>
-                ${user.uid !== window.auth.getUser()?.uid ? `
-                <select class="select-input user-role-select" style="width: auto;" data-user-id="${this.escapeHtml(user.uid)}">
-                    <option value="viewer" ${user.role === 'viewer' ? 'selected' : ''}>צופה</option>
-                    <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>מנהל</option>
-                </select>
-                ` : ''}
-            </div>
-        `).join('');
+        let html = '';
 
-        // Add event listeners to role selects (safer than inline onchange)
+        // Show pending users first
+        if (pendingUsers.length > 0) {
+            html += '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255, 193, 7, 0.1); border-radius: 0.5rem; border: 1px solid rgba(255, 193, 7, 0.3);">';
+            html += `<h3 style="margin: 0 0 1rem 0; color: var(--warning);">⏳ משתמשים ממתינים לאישור (${pendingUsers.length})</h3>`;
+            html += pendingUsers.map(user => `
+                <div class="user-item" style="background: rgba(255, 255, 255, 0.05); margin-bottom: 0.5rem; padding: 0.75rem; border-radius: 0.5rem;">
+                    <div class="user-info">
+                        <span class="user-email-display">${this.escapeHtml(user.email)}</span>
+                        <span class="user-role-badge" style="background: var(--warning);">ממתין</span>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-primary btn-sm approve-user-btn" data-user-id="${this.escapeHtml(user.uid)}">✓ אשר</button>
+                        <button class="btn btn-danger btn-sm reject-user-btn" data-user-id="${this.escapeHtml(user.uid)}">✗ דחה</button>
+                    </div>
+                </div>
+            `).join('');
+            html += '</div>';
+        }
+
+        // Show approved users
+        if (approvedUsers.length > 0) {
+            html += `<h3 style="margin: 0 0 1rem 0;">✓ משתמשים מאושרים</h3>`;
+            html += approvedUsers.map(user => `
+                <div class="user-item">
+                    <div class="user-info">
+                        <span class="user-email-display">${this.escapeHtml(user.email)}</span>
+                        <span class="user-role-badge">${user.role === 'admin' ? 'מנהל' : 'צופה'}</span>
+                    </div>
+                    ${user.uid !== window.auth.getUser()?.uid ? `
+                    <select class="select-input user-role-select" style="width: auto;" data-user-id="${this.escapeHtml(user.uid)}">
+                        <option value="viewer" ${user.role === 'viewer' ? 'selected' : ''}>צופה</option>
+                        <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>מנהל</option>
+                    </select>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        usersList.innerHTML = html;
+
+        // Add event listeners to role selects
         usersList.querySelectorAll('.user-role-select').forEach(select => {
             select.addEventListener('change', (e) => {
                 const uid = e.target.getAttribute('data-user-id');
                 this.updateUserRole(uid, e.target.value);
+            });
+        });
+
+        // Add event listeners to approve buttons
+        usersList.querySelectorAll('.approve-user-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const uid = e.target.getAttribute('data-user-id');
+                this.approveUser(uid);
+            });
+        });
+
+        // Add event listeners to reject buttons
+        usersList.querySelectorAll('.reject-user-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const uid = e.target.getAttribute('data-user-id');
+                this.rejectUser(uid);
             });
         });
     }
@@ -413,6 +466,25 @@ class App {
     async updateUserRole(uid, role) {
         await window.storage.updateUserRole(uid, role);
         this.showToast('הרשאות המשתמש עודכנו', 'success');
+    }
+
+    // Approve user
+    async approveUser(uid) {
+        await window.storage.approveUser(uid);
+        this.showToast('המשתמש אושר בהצלחה', 'success');
+        this.loadUsersList(); // Reload users list
+    }
+
+    // Reject user
+    async rejectUser(uid) {
+        this.showConfirmModal(
+            'האם אתה בטוח שברצונך לדחות משתמש זה?',
+            async () => {
+                await window.storage.rejectUser(uid);
+                this.showToast('המשתמש נדחה', 'success');
+                this.loadUsersList(); // Reload users list
+            }
+        );
     }
 
     // Update dashboard stats

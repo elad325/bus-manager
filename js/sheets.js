@@ -231,7 +231,7 @@ class GoogleSheetsStorage {
         const headers = {
             'buses': ['id', 'name', 'startLocation', 'endLocation', 'notes', 'createdAt'],
             'students': ['id', 'firstName', 'lastName', 'address', 'busId', 'createdAt'],
-            'users': ['uid', 'email', 'role', 'createdAt']
+            'users': ['uid', 'email', 'role', 'approved', 'createdAt']
         };
         return headers[sheetName] || [];
     }

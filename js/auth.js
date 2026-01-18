@@ -80,18 +80,39 @@ class AuthService {
         let userData = await window.storage.getUserByUid(firebaseUser.uid);
 
         if (!userData) {
-            // First user is admin, others are viewers
+            // First user is admin and auto-approved, others need approval
             const users = await window.storage.getUsers();
-            const role = users.length === 0 ? 'admin' : 'viewer';
+            const isFirstUser = users.length === 0;
 
             userData = {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
-                role: role,
+                role: isFirstUser ? 'admin' : 'viewer',
+                approved: isFirstUser, // First user is auto-approved
                 createdAt: new Date().toISOString()
             };
 
             await window.storage.saveUser(userData);
+
+            // If not first user, show pending message
+            if (!isFirstUser) {
+                this.currentUser = null;
+                this.isAdmin = false;
+                if (this.onAuthChangeCallback) {
+                    this.onAuthChangeCallback(null, false, 'pending');
+                }
+                return;
+            }
+        }
+
+        // Check if user is approved
+        if (!userData.approved) {
+            this.currentUser = null;
+            this.isAdmin = false;
+            if (this.onAuthChangeCallback) {
+                this.onAuthChangeCallback(null, false, 'pending');
+            }
+            return;
         }
 
         this.currentUser = {
@@ -131,31 +152,41 @@ class AuthService {
         }
 
         // Create user
-        const role = users.length === 0 ? 'admin' : 'viewer';
+        const isFirstUser = users.length === 0;
+        const role = isFirstUser ? 'admin' : 'viewer';
         const user = {
             uid: 'local_' + Date.now(),
             email: email,
             password: btoa(password), // Simple encoding (not secure, for demo only)
             role: role,
+            approved: isFirstUser, // First user is auto-approved
             createdAt: new Date().toISOString()
         };
 
         window.storage.saveLocalUser(user);
 
-        // Set as current user
-        this.currentUser = { uid: user.uid, email: user.email, role: user.role };
-        this.isAdmin = user.role === 'admin';
+        // Only set as current user if approved
+        if (user.approved) {
+            this.currentUser = { uid: user.uid, email: user.email, role: user.role };
+            this.isAdmin = user.role === 'admin';
 
-        localStorage.setItem(
-            APP_CONFIG.localStoragePrefix + APP_CONFIG.keys.currentUser,
-            JSON.stringify(this.currentUser)
-        );
+            localStorage.setItem(
+                APP_CONFIG.localStoragePrefix + APP_CONFIG.keys.currentUser,
+                JSON.stringify(this.currentUser)
+            );
 
-        if (this.onAuthChangeCallback) {
-            this.onAuthChangeCallback(this.currentUser, this.isAdmin);
+            if (this.onAuthChangeCallback) {
+                this.onAuthChangeCallback(this.currentUser, this.isAdmin);
+            }
+
+            return { success: true, user: this.currentUser };
+        } else {
+            // User needs approval
+            if (this.onAuthChangeCallback) {
+                this.onAuthChangeCallback(null, false, 'pending');
+            }
+            return { success: true, user: null, pending: true };
         }
-
-        return { success: true, user: this.currentUser };
     }
 
     // Login
@@ -183,6 +214,14 @@ class AuthService {
 
         if (user.password !== btoa(password)) {
             return { success: false, error: 'סיסמה שגויה' };
+        }
+
+        // Check if user is approved
+        if (!user.approved) {
+            if (this.onAuthChangeCallback) {
+                this.onAuthChangeCallback(null, false, 'pending');
+            }
+            return { success: false, error: 'החשבון ממתין לאישור מנהל', pending: true };
         }
 
         this.currentUser = { uid: user.uid, email: user.email, role: user.role };
