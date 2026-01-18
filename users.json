@@ -13,7 +13,7 @@
       "email": "admin@test.com",
       "password": "MTIzNDU2",
       "role": "viewer",
-      "approved": false,
+      "approved": true,
       "createdAt": "2026-01-18T19:13:06.152Z"
     }
   ]
