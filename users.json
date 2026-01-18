@@ -1,3 +1,12 @@
 {
-  "users": []
+  "users": [
+    {
+      "uid": "local_1768763490590",
+      "email": "eladsaviro@gmail.com",
+      "password": "RWxhZDA1MDMxOQ==",
+      "role": "admin",
+      "approved": true,
+      "createdAt": "2026-01-18T19:11:30.590Z"
+    }
+  ]
 }
