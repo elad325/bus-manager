@@ -72,6 +72,12 @@ class App {
             apiSettingsForm.addEventListener('submit', (e) => this.handleApiSettings(e));
         }
 
+        // GitHub settings
+        const githubSettingsForm = document.getElementById('github-settings-form');
+        if (githubSettingsForm) {
+            githubSettingsForm.addEventListener('submit', (e) => this.handleGitHubSettings(e));
+        }
+
         // Google Sheets settings
         const sheetsSettingsForm = document.getElementById('sheets-settings-form');
         if (sheetsSettingsForm) {
@@ -304,6 +310,60 @@ class App {
         this.showToast('הגדרות API נשמרו בהצלחה', 'success');
     }
 
+    // Handle GitHub settings
+    async handleGitHubSettings(e) {
+        e.preventDefault();
+
+        const owner = document.getElementById('github-owner').value.trim();
+        const repo = document.getElementById('github-repo').value.trim();
+        const token = document.getElementById('github-token').value.trim();
+        const branch = document.getElementById('github-branch').value.trim() || 'main';
+
+        if (!owner || !repo || !token) {
+            this.showToast('יש למלא את כל השדות', 'warning');
+            return;
+        }
+
+        // Save config
+        window.githubStorage.saveConfig(owner, repo, token, branch);
+
+        // Test connection
+        this.updateGitHubStatus(false, 'בודק חיבור...');
+
+        const result = await window.githubStorage.testConnection();
+
+        if (result.success) {
+            this.updateGitHubStatus(true, `✅ מחובר ל-${result.repo.full_name}`);
+            this.showToast('GitHub מוגדר בהצלחה! כל שינוי יישמר אוטומטית ב-Git', 'success');
+        } else {
+            this.updateGitHubStatus(false, `❌ שגיאה: ${result.error}`);
+            this.showToast('שגיאה בחיבור ל-GitHub', 'error');
+        }
+    }
+
+    // Update GitHub status indicator
+    updateGitHubStatus(isConnected, message) {
+        const statusDiv = document.getElementById('github-status');
+        const statusDot = statusDiv.querySelector('.status-dot');
+        const statusText = statusDiv.querySelector('.status-text');
+
+        if (statusDiv) {
+            statusDiv.style.display = 'flex';
+        }
+
+        if (statusDot) {
+            if (isConnected) {
+                statusDot.classList.add('connected');
+            } else {
+                statusDot.classList.remove('connected');
+            }
+        }
+
+        if (statusText) {
+            statusText.textContent = message;
+        }
+    }
+
     // Handle Google Sheets settings
     async handleSheetsSettings(e) {
         e.preventDefault();
@@ -372,6 +432,38 @@ class App {
             } else {
                 statusDot.classList.remove('connected');
                 statusText.textContent = 'לא מוגדר';
+            }
+        }
+
+        // GitHub configuration
+        const githubOwnerInput = document.getElementById('github-owner');
+        const githubRepoInput = document.getElementById('github-repo');
+        const githubBranchInput = document.getElementById('github-branch');
+        const githubTokenInput = document.getElementById('github-token');
+
+        // Auto-detect from URL
+        const detected = GitHubStorage.autoDetectRepo();
+        if (detected.detected) {
+            if (githubOwnerInput) githubOwnerInput.value = detected.owner;
+            if (githubRepoInput) githubRepoInput.value = detected.repo;
+        }
+
+        // Load existing config
+        const githubConfig = localStorage.getItem('github_config');
+        if (githubConfig) {
+            try {
+                const parsed = JSON.parse(githubConfig);
+                if (githubOwnerInput) githubOwnerInput.value = parsed.owner || '';
+                if (githubRepoInput) githubRepoInput.value = parsed.repo || '';
+                if (githubBranchInput) githubBranchInput.value = parsed.branch || 'main';
+                if (githubTokenInput) githubTokenInput.value = parsed.token || '';
+
+                // Update status
+                if (parsed.token && parsed.owner && parsed.repo) {
+                    this.updateGitHubStatus(true, `מחובר ל-${parsed.owner}/${parsed.repo}`);
+                }
+            } catch (e) {
+                console.error('Error loading GitHub config:', e);
             }
         }
 
