@@ -32,6 +32,13 @@ const APP_CONFIG = {
 
 // Get stored Firebase config or default
 function getFirebaseConfig() {
+    // 1. Try to get from local config file (config.local.js)
+    if (window.LOCAL_CONFIG && window.LOCAL_CONFIG.firebase) {
+        console.log('Using Firebase config from config.local.js');
+        return window.LOCAL_CONFIG.firebase;
+    }
+
+    // 2. Try to get from localStorage (set via settings page)
     const stored = localStorage.getItem(APP_CONFIG.localStoragePrefix + APP_CONFIG.keys.firebaseConfig);
     if (stored) {
         try {
@@ -40,6 +47,8 @@ function getFirebaseConfig() {
             return DEFAULT_FIREBASE_CONFIG;
         }
     }
+
+    // 3. Return default (empty)
     return DEFAULT_FIREBASE_CONFIG;
 }
 
@@ -53,12 +62,48 @@ function saveFirebaseConfig(config) {
 
 // Get Google Maps API Key
 function getGoogleMapsKey() {
+    // 1. Try to get from local config file (config.local.js)
+    if (window.LOCAL_CONFIG && window.LOCAL_CONFIG.googleMaps && window.LOCAL_CONFIG.googleMaps.apiKey) {
+        console.log('Using Google Maps API key from config.local.js');
+        return window.LOCAL_CONFIG.googleMaps.apiKey;
+    }
+
+    // 2. Try to get from localStorage (set via settings page)
     return localStorage.getItem(APP_CONFIG.localStoragePrefix + APP_CONFIG.keys.googleMapsKey) || '';
 }
 
 // Save Google Maps API Key
 function saveGoogleMapsKey(key) {
     localStorage.setItem(APP_CONFIG.localStoragePrefix + APP_CONFIG.keys.googleMapsKey, key);
+}
+
+// Get Google Sheets config
+function getGoogleSheetsConfig() {
+    // 1. Try to get from local config file (config.local.js)
+    if (window.LOCAL_CONFIG && window.LOCAL_CONFIG.googleSheets) {
+        console.log('Using Google Sheets config from config.local.js');
+        return window.LOCAL_CONFIG.googleSheets;
+    }
+
+    // 2. Try to get from localStorage (set via settings page)
+    const stored = localStorage.getItem(APP_CONFIG.localStoragePrefix + 'google_sheets_config');
+    if (stored) {
+        try {
+            return JSON.parse(stored);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    return null;
+}
+
+// Save Google Sheets config
+function saveGoogleSheetsConfig(config) {
+    localStorage.setItem(
+        APP_CONFIG.localStoragePrefix + 'google_sheets_config',
+        JSON.stringify(config)
+    );
 }
 
 // Check if Firebase is configured
@@ -73,4 +118,6 @@ window.getFirebaseConfig = getFirebaseConfig;
 window.saveFirebaseConfig = saveFirebaseConfig;
 window.getGoogleMapsKey = getGoogleMapsKey;
 window.saveGoogleMapsKey = saveGoogleMapsKey;
+window.getGoogleSheetsConfig = getGoogleSheetsConfig;
+window.saveGoogleSheetsConfig = saveGoogleSheetsConfig;
 window.isFirebaseConfigured = isFirebaseConfigured;

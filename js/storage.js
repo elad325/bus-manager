@@ -287,12 +287,39 @@ class StorageService {
 
     // ===== SETTINGS =====
 
-    getSettings() {
+    // Get settings from Firestore or localStorage
+    async getSettings() {
+        // First, try to get from Firestore (separate collection)
+        if (this.useFirebase && this.db) {
+            try {
+                const doc = await this.db.collection('settings').doc('app_settings').get();
+                if (doc.exists) {
+                    console.log('Using settings from Firestore');
+                    return doc.data();
+                }
+            } catch (error) {
+                console.error('Error getting settings from Firestore:', error);
+            }
+        }
+
+        // Fallback to localStorage
         const data = localStorage.getItem(this.prefix + APP_CONFIG.keys.settings);
         return data ? JSON.parse(data) : {};
     }
 
-    saveSettings(settings) {
+    // Save settings to both Firestore and localStorage
+    async saveSettings(settings) {
+        // Save to Firestore if available
+        if (this.useFirebase && this.db) {
+            try {
+                await this.db.collection('settings').doc('app_settings').set(settings, { merge: true });
+                console.log('Settings saved to Firestore');
+            } catch (error) {
+                console.error('Error saving settings to Firestore:', error);
+            }
+        }
+
+        // Always save to localStorage as backup
         localStorage.setItem(this.prefix + APP_CONFIG.keys.settings, JSON.stringify(settings));
     }
 
