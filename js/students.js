@@ -609,31 +609,6 @@ class StudentManager {
             console.error('Error importing Excel:', error);
             window.app.showToast('שגיאה בייבוא הנתונים', 'error');
         }
-
-
-                // Reload students
-                await this.loadStudents();
-                window.app.updateDashboardStats();
-
-                // Reload buses to update student count
-                if (window.busManager) {
-                    window.busManager.renderBusesList();
-                }
-
-                // Show summary
-                let summaryMessage = `שיוך מחדש הושלם!\n`;
-                if (successCount > 0) summaryMessage += `${successCount} תלמידים שויכו מחדש. `;
-                if (unchangedCount > 0) summaryMessage += `${unchangedCount} נשארו באותו אוטובוס. `;
-                if (failCount > 0) summaryMessage += `${failCount} נכשלו.`;
-
-                window.app.showToast(summaryMessage, successCount > 0 ? 'success' : 'warning');
-
-            } catch (error) {
-                console.error('Error in reassignAllStudents:', error);
-                window.app.showToast('שגיאה בשיוך מחדש', 'error');
-            }
-        });
-
     }
 
     // Escape HTML to prevent XSS
