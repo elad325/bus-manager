@@ -1,0 +1,10 @@
+{
+  "googleMaps": {
+    "apiKey": ""
+  },
+  "googleSheets": {
+    "apiKey": "",
+    "clientId": "",
+    "spreadsheetId": ""
+  }
+}

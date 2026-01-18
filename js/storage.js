@@ -1,56 +1,34 @@
 // ===================================
 // מערכת ניהול אוטובוסים - אחסון נתונים
 // ===================================
-// תומך בשלושה Firebase databases נפרדים:
-// 1. Users DB - משתמשים
-// 2. Data DB - תלמידים ואוטובוסים
-// 3. Settings DB - הגדרות
+// כותב ישירות ל-GitHub - כל שינוי = commit!
 // ===================================
 
 class StorageService {
     constructor() {
         this.prefix = APP_CONFIG.localStoragePrefix;
-        this.useFirebase = false;
-        this.usersDb = null;     // 👥 Users DB - משתמשים
-        this.dataDb = null;      // 🚌 Data DB - תלמידים ואוטובוסים
-        this.settingsDb = null;  // ⚙️ Settings DB - הגדרות
-        this.db = null;          // Backward compatibility
+        this.FILES = {
+            users: 'users.json',
+            data: 'data.json',
+            settings: 'settings.json'
+        };
     }
 
-    // Initialize with Firebase databases
-    // usersFirestore - for users
-    // dataFirestore - for buses and students
-    // settingsFirestore - for settings
-    init(dataFirestore = null, settingsFirestore = null, usersFirestore = null) {
-        if (usersFirestore) {
-            this.usersDb = usersFirestore;
-            console.log('👥 Users DB initialized in storage');
-        }
-
-        if (dataFirestore) {
-            this.dataDb = dataFirestore;
-            this.db = dataFirestore; // Backward compatibility
-            this.useFirebase = true;
-            console.log('🚌 Data DB initialized in storage');
-        }
-
-        if (settingsFirestore) {
-            this.settingsDb = settingsFirestore;
-            console.log('⚙️ Settings DB initialized in storage');
-        }
+    // Check if GitHub is configured
+    isGitHubConfigured() {
+        return window.githubStorage && window.githubStorage.isConfigured();
     }
 
     // ===== BUSES =====
 
     async getBuses() {
-        if (this.dataDb) {
-            try {
-                const snapshot = await this.dataDb.collection('buses').get();
-                return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            } catch (error) {
-                console.error('Error getting buses from Firebase:', error);
-                return this.getLocalBuses();
+        try {
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.data);
+                return data ? (data.buses || []) : [];
             }
+        } catch (error) {
+            console.error('Error getting buses from GitHub:', error);
         }
         return this.getLocalBuses();
     }
@@ -61,32 +39,49 @@ class StorageService {
     }
 
     async saveBus(bus) {
-        if (this.dataDb) {
-            try {
-                if (bus.id) {
-                    await this.dataDb.collection('buses').doc(bus.id).set(bus);
-                } else {
-                    const docRef = await this.dataDb.collection('buses').add(bus);
-                    bus.id = docRef.id;
+        try {
+            if (this.isGitHubConfigured()) {
+                // Get current data
+                let data = await window.githubStorage.getFile(this.FILES.data) || { buses: [], students: [] };
+                const buses = data.buses || [];
+
+                // Add or update bus
+                if (!bus.id) {
+                    bus.id = 'bus_' + Date.now();
                 }
+                const index = buses.findIndex(b => b.id === bus.id);
+                if (index >= 0) {
+                    buses[index] = bus;
+                } else {
+                    buses.push(bus);
+                }
+
+                data.buses = buses;
+
+                // Save to GitHub (creates commit!)
+                await window.githubStorage.saveFile(
+                    this.FILES.data,
+                    data,
+                    `Update bus: ${bus.name || bus.id}`
+                );
+
                 return bus;
-            } catch (error) {
-                console.error('Error saving bus to Firebase:', error);
-                return this.saveLocalBus(bus);
             }
+        } catch (error) {
+            console.error('Error saving bus to GitHub:', error);
         }
         return this.saveLocalBus(bus);
     }
 
     saveLocalBus(bus) {
         const buses = this.getLocalBuses();
-        if (!bus.id) {
-            bus.id = 'bus_' + Date.now();
-        }
         const index = buses.findIndex(b => b.id === bus.id);
         if (index >= 0) {
             buses[index] = bus;
         } else {
+            if (!bus.id) {
+                bus.id = 'bus_' + Date.now();
+            }
             buses.push(bus);
         }
         localStorage.setItem(this.prefix + APP_CONFIG.keys.buses, JSON.stringify(buses));
@@ -94,14 +89,21 @@ class StorageService {
     }
 
     async deleteBus(busId) {
-        if (this.dataDb) {
-            try {
-                await this.dataDb.collection('buses').doc(busId).delete();
+        try {
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.data) || { buses: [], students: [] };
+                data.buses = (data.buses || []).filter(b => b.id !== busId);
+
+                await window.githubStorage.saveFile(
+                    this.FILES.data,
+                    data,
+                    `Delete bus: ${busId}`
+                );
+
                 return true;
-            } catch (error) {
-                console.error('Error deleting bus from Firebase:', error);
-                return this.deleteLocalBus(busId);
             }
+        } catch (error) {
+            console.error('Error deleting bus from GitHub:', error);
         }
         return this.deleteLocalBus(busId);
     }
@@ -115,14 +117,13 @@ class StorageService {
     // ===== STUDENTS =====
 
     async getStudents() {
-        if (this.dataDb) {
-            try {
-                const snapshot = await this.dataDb.collection('students').get();
-                return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            } catch (error) {
-                console.error('Error getting students from Firebase:', error);
-                return this.getLocalStudents();
+        try {
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.data);
+                return data ? (data.students || []) : [];
             }
+        } catch (error) {
+            console.error('Error getting students from GitHub:', error);
         }
         return this.getLocalStudents();
     }
@@ -132,38 +133,47 @@ class StorageService {
         return data ? JSON.parse(data) : [];
     }
 
-    async getStudentsByBus(busId) {
-        const students = await this.getStudents();
-        return students.filter(s => s.busId === busId);
-    }
-
     async saveStudent(student) {
-        if (this.dataDb) {
-            try {
-                if (student.id) {
-                    await this.dataDb.collection('students').doc(student.id).set(student);
-                } else {
-                    const docRef = await this.dataDb.collection('students').add(student);
-                    student.id = docRef.id;
+        try {
+            if (this.isGitHubConfigured()) {
+                let data = await window.githubStorage.getFile(this.FILES.data) || { buses: [], students: [] };
+                const students = data.students || [];
+
+                if (!student.id) {
+                    student.id = 'student_' + Date.now();
                 }
+                const index = students.findIndex(s => s.id === student.id);
+                if (index >= 0) {
+                    students[index] = student;
+                } else {
+                    students.push(student);
+                }
+
+                data.students = students;
+
+                await window.githubStorage.saveFile(
+                    this.FILES.data,
+                    data,
+                    `Update student: ${student.name || student.id}`
+                );
+
                 return student;
-            } catch (error) {
-                console.error('Error saving student to Firebase:', error);
-                return this.saveLocalStudent(student);
             }
+        } catch (error) {
+            console.error('Error saving student to GitHub:', error);
         }
         return this.saveLocalStudent(student);
     }
 
     saveLocalStudent(student) {
         const students = this.getLocalStudents();
-        if (!student.id) {
-            student.id = 'student_' + Date.now();
-        }
         const index = students.findIndex(s => s.id === student.id);
         if (index >= 0) {
             students[index] = student;
         } else {
+            if (!student.id) {
+                student.id = 'student_' + Date.now();
+            }
             students.push(student);
         }
         localStorage.setItem(this.prefix + APP_CONFIG.keys.students, JSON.stringify(students));
@@ -171,14 +181,21 @@ class StorageService {
     }
 
     async deleteStudent(studentId) {
-        if (this.dataDb) {
-            try {
-                await this.dataDb.collection('students').doc(studentId).delete();
+        try {
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.data) || { buses: [], students: [] };
+                data.students = (data.students || []).filter(s => s.id !== studentId);
+
+                await window.githubStorage.saveFile(
+                    this.FILES.data,
+                    data,
+                    `Delete student: ${studentId}`
+                );
+
                 return true;
-            } catch (error) {
-                console.error('Error deleting student from Firebase:', error);
-                return this.deleteLocalStudent(studentId);
             }
+        } catch (error) {
+            console.error('Error deleting student from GitHub:', error);
         }
         return this.deleteLocalStudent(studentId);
     }
@@ -192,14 +209,13 @@ class StorageService {
     // ===== USERS =====
 
     async getUsers() {
-        if (this.usersDb) {
-            try {
-                const snapshot = await this.usersDb.collection('users').get();
-                return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            } catch (error) {
-                console.error('Error getting users from Firebase:', error);
-                return this.getLocalUsers();
+        try {
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.users);
+                return data ? (data.users || []) : [];
             }
+        } catch (error) {
+            console.error('Error getting users from GitHub:', error);
         }
         return this.getLocalUsers();
     }
@@ -210,18 +226,30 @@ class StorageService {
     }
 
     async saveUser(user) {
-        if (this.usersDb) {
-            try {
-                await this.usersDb.collection('users').doc(user.uid).set({
-                    email: user.email,
-                    role: user.role,
-                    createdAt: user.createdAt || new Date().toISOString()
-                });
+        try {
+            if (this.isGitHubConfigured()) {
+                let data = await window.githubStorage.getFile(this.FILES.users) || { users: [] };
+                const users = data.users || [];
+
+                const index = users.findIndex(u => u.uid === user.uid);
+                if (index >= 0) {
+                    users[index] = user;
+                } else {
+                    users.push(user);
+                }
+
+                data.users = users;
+
+                await window.githubStorage.saveFile(
+                    this.FILES.users,
+                    data,
+                    `Update user: ${user.email}`
+                );
+
                 return user;
-            } catch (error) {
-                console.error('Error saving user to Firebase:', error);
-                return this.saveLocalUser(user);
             }
+        } catch (error) {
+            console.error('Error saving user to GitHub:', error);
         }
         return this.saveLocalUser(user);
     }
@@ -239,29 +267,29 @@ class StorageService {
     }
 
     async getUserByUid(uid) {
-        if (this.usersDb) {
-            try {
-                const doc = await this.usersDb.collection('users').doc(uid).get();
-                if (doc.exists) {
-                    return { id: doc.id, ...doc.data() };
-                }
-            } catch (error) {
-                console.error('Error getting user from Firebase:', error);
-            }
-        }
-        const users = this.getLocalUsers();
+        const users = await this.getUsers();
         return users.find(u => u.uid === uid) || null;
     }
 
     async updateUserRole(uid, role) {
-        if (this.usersDb) {
-            try {
-                await this.usersDb.collection('users').doc(uid).update({ role });
+        try {
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.users) || { users: [] };
+                const user = (data.users || []).find(u => u.uid === uid);
+                if (user) {
+                    user.role = role;
+                    await window.githubStorage.saveFile(
+                        this.FILES.users,
+                        data,
+                        `Update user role: ${uid}`
+                    );
+                }
                 return true;
-            } catch (error) {
-                console.error('Error updating user role:', error);
             }
+        } catch (error) {
+            console.error('Error updating user role:', error);
         }
+
         const users = this.getLocalUsers();
         const user = users.find(u => u.uid === uid);
         if (user) {
@@ -272,14 +300,24 @@ class StorageService {
     }
 
     async approveUser(uid) {
-        if (this.usersDb) {
-            try {
-                await this.usersDb.collection('users').doc(uid).update({ approved: true });
+        try {
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.users) || { users: [] };
+                const user = (data.users || []).find(u => u.uid === uid);
+                if (user) {
+                    user.approved = true;
+                    await window.githubStorage.saveFile(
+                        this.FILES.users,
+                        data,
+                        `Approve user: ${uid}`
+                    );
+                }
                 return true;
-            } catch (error) {
-                console.error('Error approving user:', error);
             }
+        } catch (error) {
+            console.error('Error approving user:', error);
         }
+
         const users = this.getLocalUsers();
         const user = users.find(u => u.uid === uid);
         if (user) {
@@ -290,14 +328,21 @@ class StorageService {
     }
 
     async rejectUser(uid) {
-        if (this.usersDb) {
-            try {
-                await this.usersDb.collection('users').doc(uid).delete();
+        try {
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.users) || { users: [] };
+                data.users = (data.users || []).filter(u => u.uid !== uid);
+                await window.githubStorage.saveFile(
+                    this.FILES.users,
+                    data,
+                    `Reject user: ${uid}`
+                );
                 return true;
-            } catch (error) {
-                console.error('Error rejecting user:', error);
             }
+        } catch (error) {
+            console.error('Error rejecting user:', error);
         }
+
         const users = this.getLocalUsers().filter(u => u.uid !== uid);
         localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
         return true;
@@ -310,40 +355,39 @@ class StorageService {
 
     // ===== SETTINGS =====
 
-    // Get settings from Settings DB or localStorage
     async getSettings() {
-        // First, try to get from Settings DB (separate database)
-        if (this.settingsDb) {
-            try {
-                const doc = await this.settingsDb.collection('settings').doc('app_settings').get();
-                if (doc.exists) {
-                    console.log('⚙️ Using settings from Settings DB');
-                    return doc.data();
-                }
-            } catch (error) {
-                console.error('Error getting settings from Settings DB:', error);
+        try {
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.settings);
+                return data || {};
             }
+        } catch (error) {
+            console.error('Error getting settings from GitHub:', error);
         }
 
-        // Fallback to localStorage
         const data = localStorage.getItem(this.prefix + APP_CONFIG.keys.settings);
         return data ? JSON.parse(data) : {};
     }
 
-    // Save settings to both Settings DB and localStorage
     async saveSettings(settings) {
-        // Save to Settings DB if available
-        if (this.settingsDb) {
-            try {
-                await this.settingsDb.collection('settings').doc('app_settings').set(settings, { merge: true });
-                console.log('⚙️ Settings saved to Settings DB');
-            } catch (error) {
-                console.error('Error saving settings to Settings DB:', error);
+        try {
+            if (this.isGitHubConfigured()) {
+                await window.githubStorage.saveFile(
+                    this.FILES.settings,
+                    settings,
+                    'Update settings'
+                );
+
+                // Also save to localStorage as backup
+                localStorage.setItem(this.prefix + APP_CONFIG.keys.settings, JSON.stringify(settings));
+                return true;
             }
+        } catch (error) {
+            console.error('Error saving settings to GitHub:', error);
         }
 
-        // Always save to localStorage as backup
         localStorage.setItem(this.prefix + APP_CONFIG.keys.settings, JSON.stringify(settings));
+        return true;
     }
 
     // ===== STATS =====

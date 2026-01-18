@@ -2,222 +2,307 @@
 
 מערכת לניהול אוטובוסים, תלמידים ומסלולים עם אופטימיזציה מבוססת Google Maps.
 
-## ✨ תכונות
+## ✨ מה מיוחד במערכת הזו?
 
-- 🔐 מערכת אימות משתמשים עם אישור מנהלים
-- 🚌 ניהול אוטובוסים ומסלולים
-- 👥 ניהול תלמידים עם גיאוקודינג
-- 📊 ייבוא תלמידים מ-Excel
-- 🗺️ אופטימיזציה אוטומטית של מסלולים
-- 📱 ממשק רספונסיבי
-- ☁️ תמיכה ב-Firebase או מצב מקומי
+**💾 כל שינוי = Git commit אוטומטי!**
 
-## 🔧 התקנה והגדרה
+- ✅ **אין צורך בשרת** - עובד ישירות מהדפדפן
+- ✅ **הכל ב-Git** - כל נתון נשמר במאגר GitHub
+- ✅ **Commits אוטומטיים** - כל שינוי נשמר ב-Git אוטומטית
+- ✅ **גיבוי מובנה** - Git היסטוריה מלאה
+- ✅ **עובד מכל מקום** - רק צריך דפדפן ואינטרנט
+- ✅ **גרסאות** - rollback, branches, merges
 
-### 1. הגדרת API Keys (אופציונלי אבל מומלץ)
+---
 
-המערכת תומכת ב**3 מסדי נתונים נפרדים** להפרדה מלאה:
-- 👥 **Users DB** - משתמשים ואימות
-- 🚌 **Data DB** - תלמידים ואוטובוסים
-- ⚙️ **Settings DB** - הגדרות API
+## 🚀 התקנה מהירה
 
-#### **אפשרות א': קובץ קונפיגורציה מקומי** (מומלץ - לא יימחק!)
+### שלב 1: Fork את המאגר
 
-1. העתק את קובץ הדוגמה:
-   ```bash
-   cp config.local.js.example config.local.js
-   ```
+לחץ על "Fork" למעלה בדף GitHub → יצור לך עותק של המאגר.
 
-2. ערוך את `config.local.js` והכנס את המפתחות שלך:
-   ```javascript
-   window.LOCAL_CONFIG = {
-       // 👥 Firebase למשתמשים (Users DB)
-       firebaseUsers: {
-           apiKey: "YOUR_FIREBASE_API_KEY",
-           authDomain: "YOUR_USERS_PROJECT.firebaseapp.com",
-           projectId: "YOUR_USERS_PROJECT_ID",
-           // ...
-       },
+### שלב 2: הפעל GitHub Pages (אופציונלי)
 
-       // 🚌 Firebase לתלמידים ואוטובוסים (Data DB)
-       firebaseData: {
-           apiKey: "YOUR_FIREBASE_API_KEY",
-           authDomain: "YOUR_DATA_PROJECT.firebaseapp.com",
-           projectId: "YOUR_DATA_PROJECT_ID",
-           // ...
-       },
+אם אתה רוצה שהמערכת תעבוד ישירות מ-GitHub:
 
-       // ⚙️ Firebase להגדרות (Settings DB)
-       firebaseSettings: {
-           apiKey: "YOUR_FIREBASE_API_KEY",
-           authDomain: "YOUR_SETTINGS_PROJECT.firebaseapp.com",
-           projectId: "YOUR_SETTINGS_PROJECT_ID",
-           // ...
-       },
+1. הגדרות המאגר → Pages
+2. Source: Deploy from a branch
+3. Branch: `main` / `(root)`
+4. שמור
 
-       googleMaps: {
-           apiKey: "YOUR_GOOGLE_MAPS_API_KEY"
-       },
-       googleSheets: {
-           apiKey: "YOUR_GOOGLE_SHEETS_API_KEY",
-           clientId: "YOUR_CLIENT_ID.apps.googleusercontent.com",
-           spreadsheetId: "YOUR_SPREADSHEET_ID"
-       }
-   };
-   ```
+עכשיו תוכל לגשת ל: `https://<username>.github.io/<repo-name>`
 
-3. **הקובץ לא יועלה ל-Git** - ההגדרות שלך יישארו במחשב! 🔒
+### שלב 3: צור Personal Access Token
 
-**💡 טיפ**: אם אתה רוצה להשתמש באותו Firebase Project לכל 3 ה-DBs, פשוט העתק את אותם פרטי Firebase לשלושת הקונפיגורציות!
+1. עבור ל-[GitHub Settings → Tokens](https://github.com/settings/tokens/new)
+2. צור טוקן חדש עם הרשאות `repo` (Full control of private repositories)
+3. העתק את הטוקן (תוכל לראות אותו רק פעם אחת!)
 
-#### **אפשרות ב': דרך ממשק ההגדרות**
+### שלב 4: הגדר את המערכת
 
-1. פתח את האפליקציה
-2. עבור לעמוד ההגדרות
-3. הזן את ה-API Keys
-4. ההגדרות יישמרו ב-localStorage ו-Firestore (אם מוגדר)
+1. פתח את `github-setup.html` בדפדפן (או דרך GitHub Pages)
+2. הזן:
+   - **Username/Organization**: שם המשתמש שלך ב-GitHub
+   - **Repository Name**: שם המאגר שיצרת (בד"כ `bus-manager`)
+   - **Personal Access Token**: הטוקן שיצרת
+   - **Branch**: `main` (או `master` אם יש לך ענף ישן)
+3. לחץ "בדוק והגדר"
+4. אם הכל תקין → עבור לאפליקציה!
 
-### 2. סדרי עדיפויות בטעינת הגדרות
+### שלב 5: התחל לעבוד!
 
-המערכת טוענת הגדרות לפי הסדר הבא:
+פתח את `index.html` והתחל להשתמש במערכת.
+**כל שינוי שתעשה יישמר אוטומטית ב-Git!** 🎉
 
-1. 📁 **config.local.js** (קובץ מקומי - עדיפות ראשונה)
-   - 👥 `firebaseUsers` → Users DB
-   - 🚌 `firebaseData` → Data DB
-   - ⚙️ `firebaseSettings` → Settings DB
-2. ☁️ **Firestore** (כל DB נפרד - אם Firebase מוגדר)
-3. 💾 **localStorage** (גיבוי מקומי)
+---
 
-זה אומר שאם יש לך `config.local.js`, המערכת תשתמש בו תמיד, ולא תשנה אותו!
+## 📂 מבנה הנתונים
 
-### 3. מבנה מסדי הנתונים
+המערכת משתמשת ב-**3 קבצי JSON** במאגר:
 
-המערכת משתמשת ב-3 Firebase databases נפרדים:
+| קובץ | תוכן | מתי משתנה |
+|------|------|-----------|
+| **users.json** | משתמשים ואימות | רישום, אישור, עדכון תפקידים |
+| **data.json** | תלמידים ואוטובוסים | הוספה, עריכה, מחיקה |
+| **settings.json** | API Keys והגדרות | שינוי הגדרות |
 
-| DB | מה נמצא בו | יתרונות |
-|----|-----------|---------|
-| 👥 **Users DB** | משתמשים, אימות, הרשאות | אבטחה, הפרדת גישות |
-| 🚌 **Data DB** | תלמידים, אוטובוסים, מסלולים | ביצועים, ניהול נפרד |
-| ⚙️ **Settings DB** | API Keys, הגדרות מערכת | לא נמחק, נפרד מנתונים |
+**כל שינוי בקבצים האלה = commit חדש ב-Git!**
 
-**למה זה חשוב?**
-- ✅ הגדרות לא נמחקות בטעות
-- ✅ אפשר לתת גישות שונות לכל DB
-- ✅ גיבוי נפרד לכל סוג נתונים
-- ✅ ביצועים טובים יותר
+---
 
-### 4. הרצת האפליקציה
-
-#### **מצב פיתוח (מומלץ):**
-```bash
-# עם Python 3
-python -m http.server 8000
-
-# או עם Node.js
-npx http-server -p 8000
-```
-
-פתח בדפדפן: `http://localhost:8000`
-
-#### **מצב מקומי:**
-פשוט פתח את `index.html` בדפדפן (חלק מהתכונות עשויות להיות מוגבלות)
-
-## 👥 ניהול משתמשים
-
-### משתמש ראשון (אדמין)
-
-- המשתמש הראשון שנרשם הופך אוטומטית למנהל
-- מנהלים יכולים לאשר/לדחות משתמשים חדשים
-
-### משתמשים נוספים
-
-- צריכים אישור ממנהל לפני שיוכלו להיכנס
-- יקבלו הודעה "החשבון ממתין לאישור"
-
-### תיקון בעיות משתמשים
-
-אם אתה לא יכול להתחבר, פתח את `fix-users.html` ב דפדפן:
-- 📊 תוכל לראות את כל המשתמשים
-- ✅ לאשר משתמשים קיימים
-- 🗑️ לנקות הכל ולהתחיל מחדש
-
-## 📚 מבנה הפרויקט
+## 🔄 איך זה עובד?
 
 ```
-bus-manager/
-├── index.html              # עמוד ראשי
-├── config.local.js         # הגדרות מקומיות (לא ב-git) 🔒
-├── config.local.js.example # דוגמה להגדרות
-├── fix-users.html          # כלי תיקון משתמשים
-├── js/
-│   ├── config.js           # ניהול קונפיגורציה
-│   ├── storage.js          # ניהול אחסון (Firestore/localStorage)
-│   ├── auth.js             # אימות משתמשים
-│   ├── app.js              # לוגיקה ראשית
-│   ├── buses.js            # ניהול אוטובוסים
-│   ├── students.js         # ניהול תלמידים
-│   ├── routes.js           # ניהול מסלולים
-│   ├── maps.js             # אינטגרציה עם Google Maps
-│   └── sheets.js           # אינטגרציה עם Google Sheets
-└── styles/
-    └── main.css            # עיצוב
+משתמש מוסיף תלמיד
+    ↓
+המערכת קוראת את data.json מ-GitHub
+    ↓
+מוסיפה את התלמיד למערך
+    ↓
+כותבת את data.json חזרה ל-GitHub
+    ↓
+✅ Git commit חדש נוצר אוטומטית!
 ```
 
-## 🔑 קבלת API Keys
+**לא צריך לעשות `git add` / `git commit` / `git push` ידנית!**
 
-### Firebase (אופציונלי)
-1. היכנס ל-[Firebase Console](https://console.firebase.google.com/)
+---
+
+## 🌟 תכונות
+
+- 🔐 **מערכת אימות משתמשים** עם אישור מנהלים
+- 🚌 **ניהול אוטובוסים** ומסלולים
+- 👥 **ניהול תלמידים** עם גיאוקודינג
+- 📊 **ייבוא מ-Excel** עם בחירת עמודות
+- 🗺️ **אופטימיזציה אוטומטית** של מסלולים
+- 📱 **ממשק רספונסיבי** לכל המכשירים
+- 💾 **Git היסטוריה מלאה** - רואים מתי ומי שינה מה
+
+---
+
+## 🔑 הגדרת API Keys
+
+### Google Maps API (חובה)
+
+1. עבור ל-[Google Cloud Console](https://console.cloud.google.com/)
 2. צור פרויקט חדש
-3. הוסף אפליקציית Web
-4. העתק את פרטי ההגדרה
-
-### Google Maps API
-1. היכנס ל-[Google Cloud Console](https://console.cloud.google.com/)
-2. צור פרויקט חדש או בחר קיים
-3. הפעל את ה-APIs הבאים:
+3. הפעל APIs:
    - Maps JavaScript API
    - Geocoding API
    - Directions API
 4. צור API Key ב-Credentials
 
+5. באפליקציה:
+   - עבור ל"הגדרות"
+   - הזן את ה-API Key
+   - שמור
+
+**ההגדרות יישמרו ב-`settings.json` ב-Git!**
+
 ### Google Sheets API (אופציונלי)
+
+אם אתה רוצה אינטגרציה עם Google Sheets:
 1. באותו פרויקט ב-Google Cloud
-2. הפעל את Google Sheets API
+2. הפעל Google Sheets API
 3. צור OAuth 2.0 Client ID
-4. העתק את Client ID ו-API Key
+4. הזן ב-הגדרות המערכת
 
-## 🛡️ אבטחה
+---
 
-- ✅ XSS Protection - כל קלט משתמש מנוטרל
-- ✅ קבצי הגדרות לא מועלים ל-Git
-- ✅ מערכת אישור משתמשים
-- ✅ הפרדה בין הגדרות לנתונים
+## 👥 ניהול משתמשים
+
+### משתמש ראשון = מנהל
+
+המשתמש הראשון שנרשם הופך אוטומטית למנהל ומאושר.
+
+### משתמשים נוספים
+
+משתמשים נוספים צריכים אישור ממנהל לפני שיוכלו להיכנס.
+
+**כל שינוי במשתמשים = commit ב-`users.json`!**
+
+---
+
+## 🔄 עבודה עם Git
+
+### ראה היסטוריה
+
+```bash
+git log --oneline -- data.json
+```
+
+### חזור לגרסה קודמת
+
+```bash
+git checkout <commit-hash> -- data.json
+git add data.json
+git commit -m "Rollback data to previous version"
+git push
+```
+
+### Branches
+
+```bash
+# צור ענף חדש לניסויים
+git checkout -b experiment
+# עשה שינויים...
+# אם טוב - merge
+git checkout main
+git merge experiment
+```
+
+### סנכרון בין מחשבים
+
+המערכת עובדת **ישירות מ-GitHub**, אז:
+- פתח מכל מחשב → הנתונים עדכניים
+- אין צורך ב-`git pull` ידני
+- הכל אוטומטי!
+
+---
+
+## 🛠️ פיתוח
+
+### הרצה מקומית
+
+```bash
+# פשוט פתח את index.html בדפדפן
+# או השתמש בשרת HTTP פשוט:
+python -m http.server 8000
+# או:
+npx http-server
+```
+
+### מבנה הקוד
+
+```
+bus-manager/
+├── index.html              # עמוד ראשי
+├── github-setup.html       # הגדרת GitHub
+├── users.json             # 👥 משתמשים
+├── data.json              # 🚌 נתונים
+├── settings.json          # ⚙️ הגדרות
+└── js/
+    ├── github-storage.js  # GitHub API client
+    ├── storage.js         # Storage layer
+    ├── auth.js            # אימות
+    ├── app.js             # לוגיקה ראשית
+    ├── buses.js           # אוטובוסים
+    ├── students.js        # תלמידים
+    ├── routes.js          # מסלולים
+    └── maps.js            # Google Maps
+```
+
+---
+
+## 🔒 אבטחה
+
+### Personal Access Token
+
+- ✅ נשמר ב-localStorage של הדפדפן (לא ב-Git!)
+- ✅ לא משותף עם אף אחד
+- ✅ ניתן לבטל בכל עת ב-GitHub
+
+### הרשאות מומלצות
+
+כשיוצרים טוקן, תנו רק הרשאות `repo`:
+- ✅ `repo:status` - גישה לסטטוס
+- ✅ `repo_deployment` - גישה לדפלוימנטים
+- ✅ `public_repo` - גישה למאגרים פומביים
+- ✅ `repo` (Private) - גישה למאגרים פרטיים
+
+**אל תתנו הרשאות מיותרות!**
+
+---
+
+## 💡 טיפים
+
+### 1. עבוד בבטחה עם branches
+
+```bash
+# צור ענף לפני שינויים גדולים
+git checkout -b new-feature
+```
+
+### 2. השתמש ב-Tags לגרסאות
+
+```bash
+git tag -a v1.0 -m "Version 1.0 - Stable"
+git push --tags
+```
+
+### 3. גיבויים
+
+Git הוא הגיבוי, אבל אפשר גם:
+```bash
+# Clone נוסף במקום אחר
+git clone <your-repo-url> backup/
+```
+
+### 4. בדוק commits
+
+בדף GitHub → "Commits" → תוכל לראות:
+- מתי שונה כל קובץ
+- מי שינה (אם יש כמה משתמשים)
+- מה השתנה (diff)
+
+---
 
 ## 🐛 פתרון בעיות
 
-### "לא מצליח להתחבר"
-- פתח את `fix-users.html` ואשר את המשתמשים
-- בדוק שה-API Keys נכונים
+### "Failed to connect to GitHub"
 
-### "המפות לא עובדות"
-- בדוק שהגדרת Google Maps API Key
-- בדוק שהפעלת את ה-APIs הנדרשים ב-Google Cloud
+✅ בדוק:
+- הטוקן תקין?
+- שם המשתמש/מאגר נכונים?
+- הענף קיים?
+- יש לטוקן הרשאות `repo`?
 
-### "הנתונים נמחקים"
-- השתמש ב-`config.local.js` במקום להזין הגדרות בממשק
-- בדוק שלא מחקת את localStorage
+### "API rate limit exceeded"
 
-### "שגיאות תחביר בדפדפן"
-- בדוק את ה-Console בדפדפן
-- ודא שכל קבצי ה-JS נטענים כראוי
+GitHub מגביל ל-60 requests לשעה ללא אימות, 5000 עם טוקן.
+
+אם הגעת למגבלה:
+- חכה שעה
+- או שדרג את הטוקן
+
+### "Merge conflicts"
+
+אם 2 משתמשים עורכים בו-זמנית:
+1. המערכת תזהה conflict
+2. תצטרך לפתור ידנית ב-GitHub
+3. או להשתמש ב-Git CLI
+
+---
 
 ## 📞 תמיכה
 
-אם נתקלת בבעיה, בדוק:
-1. 🔍 Console בדפדפן (F12) - שגיאות
-2. 📁 הקובץ `config.local.js` קיים ותקין
-3. 🔑 ה-API Keys תקינים ופעילים
-4. 🌐 יש חיבור לאינטרנט (אם משתמש ב-Firebase/Google APIs)
+יש בעיה? תקלה? שאלה?
+
+1. בדוק את ה-Console בדפדפן (F12)
+2. בדוק את ה-commits ב-GitHub
+3. פתח issue במאגר
+
+---
 
 ## 📄 רישיון
 
@@ -225,4 +310,15 @@ MIT License - חופשי לשימוש ושינוי
 
 ---
 
-💡 **טיפ**: שמור את הקובץ `config.local.js` בגיבוי נפרד כדי שלא תאבד את ההגדרות!
+## 🎉 סיכום
+
+**מערכת הניהול אוטובוסים הזו:**
+
+✅ כותבת ישירות ל-Git
+✅ בלי שרת מקומי
+✅ בלי תלות בענן חיצוני
+✅ commits אוטומטיים
+✅ היסטוריה מלאה
+✅ עובדת מכל מקום
+
+**פשוט, מהיר, ובטוח!** 🚀

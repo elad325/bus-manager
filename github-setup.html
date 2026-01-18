@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>הגדרת GitHub - מערכת ניהול אוטובוסים</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .help-text {
+            font-size: 13px;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .help-text a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .help-text a:hover {
+            text-decoration: underline;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+
+        .instructions {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .instructions h3 {
+            color: #495057;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .instructions ol {
+            margin-right: 20px;
+            color: #6c757d;
+        }
+
+        .instructions li {
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+
+        .instructions code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+
+        .back-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .back-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 הגדרת GitHub</h1>
+        <p class="subtitle">כל השינויים יישמרו אוטומטית ב-Git!</p>
+
+        <div class="instructions">
+            <h3>📋 צעדים להגדרה:</h3>
+            <ol>
+                <li>היכנס ל-<a href="https://github.com/settings/tokens/new" target="_blank">GitHub Settings → Tokens</a></li>
+                <li>צור <strong>Personal Access Token</strong></li>
+                <li>בחר הרשאות: <code>repo</code> (גישה מלאה למאגר)</li>
+                <li>העתק את הטוקן והכנס אותו למטה</li>
+            </ol>
+        </div>
+
+        <form id="github-form">
+            <div class="form-group">
+                <label for="owner">Username/Organization</label>
+                <input type="text" id="owner" required placeholder="למשל: elad325">
+                <div class="help-text">שם המשתמש או הארגון שלך ב-GitHub</div>
+            </div>
+
+            <div class="form-group">
+                <label for="repo">Repository Name</label>
+                <input type="text" id="repo" required placeholder="למשל: bus-manager">
+                <div class="help-text">שם המאגר (repository) שלך</div>
+            </div>
+
+            <div class="form-group">
+                <label for="token">Personal Access Token</label>
+                <input type="password" id="token" required placeholder="ghp_...">
+                <div class="help-text">
+                    <a href="https://github.com/settings/tokens/new" target="_blank">צור טוקן חדש ב-GitHub</a>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="branch">Branch (ברירת מחדל: main)</label>
+                <input type="text" id="branch" placeholder="main" value="main">
+                <div class="help-text">הענף בו לשמור את הנתונים</div>
+            </div>
+
+            <button type="submit">בדוק והגדר</button>
+        </form>
+
+        <div id="status" class="status"></div>
+
+        <div class="back-link">
+            <a href="index.html">← חזרה לאפליקציה</a>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/github-storage.js"></script>
+    <script>
+        const form = document.getElementById('github-form');
+        const statusDiv = document.getElementById('status');
+
+        // Load existing config if available
+        window.addEventListener('load', () => {
+            const config = localStorage.getItem('github_config');
+            if (config) {
+                try {
+                    const parsed = JSON.parse(config);
+                    document.getElementById('owner').value = parsed.owner || '';
+                    document.getElementById('repo').value = parsed.repo || '';
+                    document.getElementById('token').value = parsed.token || '';
+                    document.getElementById('branch').value = parsed.branch || 'main';
+                } catch (e) {
+                    console.error('Error loading config:', e);
+                }
+            }
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const owner = document.getElementById('owner').value.trim();
+            const repo = document.getElementById('repo').value.trim();
+            const token = document.getElementById('token').value.trim();
+            const branch = document.getElementById('branch').value.trim() || 'main';
+
+            // Save config
+            window.githubStorage.saveConfig(owner, repo, token, branch);
+
+            // Test connection
+            statusDiv.className = 'status';
+            statusDiv.textContent = '⏳ בודק חיבור ל-GitHub...';
+            statusDiv.style.display = 'block';
+
+            const result = await window.githubStorage.testConnection();
+
+            if (result.success) {
+                statusDiv.className = 'status success';
+                statusDiv.innerHTML = `
+                    ✅ <strong>הצלחה!</strong><br>
+                    מחובר ל: ${result.repo.full_name}<br>
+                    כל השינויים יישמרו אוטומטית ב-Git!<br><br>
+                    <a href="index.html" style="color: #155724; font-weight: bold;">→ עבור לאפליקציה</a>
+                `;
+            } else {
+                statusDiv.className = 'status error';
+                statusDiv.innerHTML = `
+                    ❌ <strong>שגיאה בחיבור:</strong><br>
+                    ${result.error}<br><br>
+                    בדוק את:
+                    <ul style="margin-top: 10px; margin-right: 20px;">
+                        <li>הטוקן תקין ויש לו הרשאות <code>repo</code></li>
+                        <li>שם המשתמש/מאגר נכונים</li>
+                        <li>הענף קיים במאגר</li>
+                    </ul>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

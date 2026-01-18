@@ -11,10 +11,7 @@ class App {
     // Initialize the application
     async init() {
         try {
-            // Initialize 3 separate Firebase databases
-            await this.initFirebaseDatabases();
-
-            // Initialize auth with Users DB
+            // Initialize auth
             await window.auth.init();
 
             // Set up auth state listener
@@ -37,63 +34,6 @@ class App {
             console.error('Error initializing app:', error);
             this.hideLoadingScreen();
             this.showLoginPage();
-        }
-    }
-
-    // Initialize 3 separate Firebase databases
-    async initFirebaseDatabases() {
-        try {
-            let usersDb = null;
-            let dataDb = null;
-            let settingsDb = null;
-
-            // 👥 Initialize Users DB
-            if (isFirebaseUsersConfigured()) {
-                const usersConfig = getFirebaseUsersConfig();
-                let usersApp;
-                const existingUsersApp = firebase.apps.find(app => app.name === 'users');
-                if (existingUsersApp) {
-                    usersApp = existingUsersApp;
-                } else {
-                    usersApp = firebase.initializeApp(usersConfig, 'users');
-                }
-                usersDb = usersApp.firestore();
-                console.log('👥 Users DB initialized');
-            }
-
-            // 🚌 Initialize Data DB
-            if (isFirebaseDataConfigured()) {
-                const dataConfig = getFirebaseDataConfig();
-                let dataApp;
-                const existingDataApp = firebase.apps.find(app => app.name === 'data');
-                if (existingDataApp) {
-                    dataApp = existingDataApp;
-                } else {
-                    dataApp = firebase.initializeApp(dataConfig, 'data');
-                }
-                dataDb = dataApp.firestore();
-                console.log('🚌 Data DB initialized');
-            }
-
-            // ⚙️ Initialize Settings DB
-            if (isFirebaseSettingsConfigured()) {
-                const settingsConfig = getFirebaseSettingsConfig();
-                let settingsApp;
-                const existingSettingsApp = firebase.apps.find(app => app.name === 'settings');
-                if (existingSettingsApp) {
-                    settingsApp = existingSettingsApp;
-                } else {
-                    settingsApp = firebase.initializeApp(settingsConfig, 'settings');
-                }
-                settingsDb = settingsApp.firestore();
-                console.log('⚙️ Settings DB initialized');
-            }
-
-            // Initialize storage with all 3 databases
-            window.storage.init(dataDb, settingsDb, usersDb);
-
-        } catch (error) {
-            console.error('Error initializing Firebase databases:', error);
         }
     }
 

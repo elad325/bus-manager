@@ -10,9 +10,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles/main.css">
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <!-- SheetJS for Excel import -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
@@ -460,9 +457,8 @@
         <div id="print-stops-list"></div>
     </div>
 
-    <!-- Local config (optional, not in git) -->
-    <script src="config.local.js" onerror="console.log('No local config file found, using localStorage/Firestore')"></script>
     <script src="js/config.js"></script>
+    <script src="js/github-storage.js"></script>
     <script src="js/storage.js"></script>
     <script src="js/sheets.js"></script>
     <script src="js/auth.js"></script>
