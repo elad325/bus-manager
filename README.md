@@ -2,259 +2,305 @@
 
 מערכת לניהול אוטובוסים, תלמידים ומסלולים עם אופטימיזציה מבוססת Google Maps.
 
-## ✨ תכונות
+## ✨ מה מיוחד במערכת הזו?
 
-- 🔐 מערכת אימות משתמשים עם אישור מנהלים
-- 🚌 ניהול אוטובוסים ומסלולים
-- 👥 ניהול תלמידים עם גיאוקודינג
-- 📊 ייבוא תלמידים מ-Excel
-- 🗺️ אופטימיזציה אוטומטית של מסלולים
-- 📱 ממשק רספונסיבי
-- 💾 **3 מסדי נתונים JSON נפרדים ב-Git!**
+**💾 כל שינוי = Git commit אוטומטי!**
 
-## 🏗️ ארכיטקטורה
-
-המערכת משתמשת ב-**3 קבצי JSON נפרדים** שנשמרים ב-Git:
-
-| קובץ | תוכן | מטרה |
-|------|------|------|
-| 👥 **users.json** | משתמשים ואימות | ניהול משתמשים והרשאות |
-| 🚌 **data.json** | תלמידים ואוטובוסים | נתוני המערכת הראשיים |
-| ⚙️ **settings.json** | API Keys והגדרות | הגדרות שלא נמחקות! |
-
-**שרת Node.js** מספק API REST פשוט לקריאה/כתיבה של הקבצים.
-
-### למה זה טוב?
-- ✅ **כל הנתונים ב-Git** - ניתן לעשות commits, rollback, branching
-- ✅ **הגדרות לא נמחקות** - settings.json נפרד לגמרי
-- ✅ **פשוט ובלי תלות חיצונית** - בלי Firebase או cloud
-- ✅ **גיבוי אוטומטי** - Git הוא הגיבוי
-- ✅ **ניהול גרסאות** - כל שינוי נשמר ב-Git history
-
-## 🚀 התקנה והרצה
-
-### דרישות מקדימות
-- Node.js גרסה 16 ומעלה
-- Git
-
-### שלב 1: התקנת dependencies
-
-```bash
-npm install
-```
-
-### שלב 2: הרצת השרת
-
-```bash
-npm start
-```
-
-השרת יעלה על `http://localhost:3000`
-
-### שלב 3: פתיחת הדפדפן
-
-פתח את `http://localhost:3000` בדפדפן
+- ✅ **אין צורך בשרת** - עובד ישירות מהדפדפן
+- ✅ **הכל ב-Git** - כל נתון נשמר במאגר GitHub
+- ✅ **Commits אוטומטיים** - כל שינוי נשמר ב-Git אוטומטית
+- ✅ **גיבוי מובנה** - Git היסטוריה מלאה
+- ✅ **עובד מכל מקום** - רק צריך דפדפן ואינטרנט
+- ✅ **גרסאות** - rollback, branches, merges
 
 ---
 
-## 📁 מבנה הפרויקט
+## 🚀 התקנה מהירה
+
+### שלב 1: Fork את המאגר
+
+לחץ על "Fork" למעלה בדף GitHub → יצור לך עותק של המאגר.
+
+### שלב 2: הפעל GitHub Pages (אופציונלי)
+
+אם אתה רוצה שהמערכת תעבוד ישירות מ-GitHub:
+
+1. הגדרות המאגר → Pages
+2. Source: Deploy from a branch
+3. Branch: `main` / `(root)`
+4. שמור
+
+עכשיו תוכל לגשת ל: `https://<username>.github.io/<repo-name>`
+
+### שלב 3: צור Personal Access Token
+
+1. עבור ל-[GitHub Settings → Tokens](https://github.com/settings/tokens/new)
+2. צור טוקן חדש עם הרשאות `repo` (Full control of private repositories)
+3. העתק את הטוקן (תוכל לראות אותו רק פעם אחת!)
+
+### שלב 4: הגדר את המערכת
+
+1. פתח את `github-setup.html` בדפדפן (או דרך GitHub Pages)
+2. הזן:
+   - **Username/Organization**: שם המשתמש שלך ב-GitHub
+   - **Repository Name**: שם המאגר שיצרת (בד"כ `bus-manager`)
+   - **Personal Access Token**: הטוקן שיצרת
+   - **Branch**: `main` (או `master` אם יש לך ענף ישן)
+3. לחץ "בדוק והגדר"
+4. אם הכל תקין → עבור לאפליקציה!
+
+### שלב 5: התחל לעבוד!
+
+פתח את `index.html` והתחל להשתמש במערכת.
+**כל שינוי שתעשה יישמר אוטומטית ב-Git!** 🎉
+
+---
+
+## 📂 מבנה הנתונים
+
+המערכת משתמשת ב-**3 קבצי JSON** במאגר:
+
+| קובץ | תוכן | מתי משתנה |
+|------|------|-----------|
+| **users.json** | משתמשים ואימות | רישום, אישור, עדכון תפקידים |
+| **data.json** | תלמידים ואוטובוסים | הוספה, עריכה, מחיקה |
+| **settings.json** | API Keys והגדרות | שינוי הגדרות |
+
+**כל שינוי בקבצים האלה = commit חדש ב-Git!**
+
+---
+
+## 🔄 איך זה עובד?
 
 ```
-bus-manager/
-├── server.js                # שרת Node.js עם Express
-├── package.json             # Dependencies
-├── users.json              # 👥 DB למשתמשים
-├── data.json               # 🚌 DB לתלמידים ואוטובוסים
-├── settings.json           # ⚙️ DB להגדרות
-├── index.html              # עמוד ראשי
-├── js/
-│   ├── config.js          # ניהול קונפיגורציה
-│   ├── storage.js         # API client (fetch)
-│   ├── auth.js            # אימות משתמשים
-│   ├── app.js             # לוגיקה ראשית
-│   ├── buses.js           # ניהול אוטובוסים
-│   ├── students.js        # ניהול תלמידים
-│   ├── routes.js          # ניהול מסלולים
-│   ├── maps.js            # אינטגרציה עם Google Maps
-│   └── sheets.js          # אינטגרציה עם Google Sheets
-└── styles/
-    └── main.css           # עיצוב
+משתמש מוסיף תלמיד
+    ↓
+המערכת קוראת את data.json מ-GitHub
+    ↓
+מוסיפה את התלמיד למערך
+    ↓
+כותבת את data.json חזרה ל-GitHub
+    ↓
+✅ Git commit חדש נוצר אוטומטית!
 ```
+
+**לא צריך לעשות `git add` / `git commit` / `git push` ידנית!**
+
+---
+
+## 🌟 תכונות
+
+- 🔐 **מערכת אימות משתמשים** עם אישור מנהלים
+- 🚌 **ניהול אוטובוסים** ומסלולים
+- 👥 **ניהול תלמידים** עם גיאוקודינג
+- 📊 **ייבוא מ-Excel** עם בחירת עמודות
+- 🗺️ **אופטימיזציה אוטומטית** של מסלולים
+- 📱 **ממשק רספונסיבי** לכל המכשירים
+- 💾 **Git היסטוריה מלאה** - רואים מתי ומי שינה מה
 
 ---
 
 ## 🔑 הגדרת API Keys
 
-### Google Maps API (חובה למפות)
+### Google Maps API (חובה)
 
-1. היכנס ל-[Google Cloud Console](https://console.cloud.google.com/)
-2. צור פרויקט חדש או בחר קיים
-3. הפעל את ה-APIs הבאים:
+1. עבור ל-[Google Cloud Console](https://console.cloud.google.com/)
+2. צור פרויקט חדש
+3. הפעל APIs:
    - Maps JavaScript API
    - Geocoding API
    - Directions API
 4. צור API Key ב-Credentials
 
-5. **ערוך את `settings.json`:**
+5. באפליקציה:
+   - עבור ל"הגדרות"
+   - הזן את ה-API Key
+   - שמור
 
-```json
-{
-  "googleMaps": {
-    "apiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
-  },
-  "googleSheets": {
-    "apiKey": "",
-    "clientId": "",
-    "spreadsheetId": ""
-  }
-}
-```
-
-**לחלופין**, הגדר דרך ממשק המשתמש:
-- התחבר למערכת
-- עבור לעמוד "הגדרות"
-- הזן את ה-API Key
-- לחץ "שמור"
+**ההגדרות יישמרו ב-`settings.json` ב-Git!**
 
 ### Google Sheets API (אופציונלי)
 
 אם אתה רוצה אינטגרציה עם Google Sheets:
-
 1. באותו פרויקט ב-Google Cloud
-2. הפעל את Google Sheets API
+2. הפעל Google Sheets API
 3. צור OAuth 2.0 Client ID
-4. העתק את Client ID ו-API Key ל-`settings.json`
+4. הזן ב-הגדרות המערכת
 
 ---
 
 ## 👥 ניהול משתמשים
 
-### משתמש ראשון (אדמין)
+### משתמש ראשון = מנהל
 
-- המשתמש הראשון שנרשם הופך אוטומטית למנהל ✅
-- מנהלים יכולים לאשר/לדחות משתמשים חדשים
+המשתמש הראשון שנרשם הופך אוטומטית למנהל ומאושר.
 
 ### משתמשים נוספים
 
-- צריכים אישור ממנהל לפני שיוכלו להיכנס ⏳
-- יקבלו הודעה "החשבון ממתין לאישור"
+משתמשים נוספים צריכים אישור ממנהל לפני שיוכלו להיכנס.
 
-### תיקון בעיות משתמשים
-
-אם אתה לא יכול להתחבר, פתח את `fix-users.html` בדפדפן:
-- 📊 תוכל לראות את כל המשתמשים
-- ✅ לאשר משתמשים קיימים
-- 🗑️ לנקות הכל ולהתחיל מחדש
+**כל שינוי במשתמשים = commit ב-`users.json`!**
 
 ---
 
 ## 🔄 עבודה עם Git
 
-### שמירת שינויים
-
-הנתונים נשמרים ב-3 קבצי JSON. כדי לשמור את השינויים ב-Git:
+### ראה היסטוריה
 
 ```bash
-git add users.json data.json settings.json
-git commit -m "עדכון נתונים - הוספת 5 תלמידים חדשים"
+git log --oneline -- data.json
+```
+
+### חזור לגרסה קודמת
+
+```bash
+git checkout <commit-hash> -- data.json
+git add data.json
+git commit -m "Rollback data to previous version"
 git push
 ```
 
-### שחזור גרסה קודמת
+### Branches
 
 ```bash
-# לראות היסטוריה
-git log --oneline
-
-# לחזור לגרסה מסוימת
-git checkout <commit-hash> -- data.json
-
-# או לבטל שינויים אחרונים
-git restore data.json
+# צור ענף חדש לניסויים
+git checkout -b experiment
+# עשה שינויים...
+# אם טוב - merge
+git checkout main
+git merge experiment
 ```
 
 ### סנכרון בין מחשבים
 
-```bash
-# במחשב 1
-git pull  # קבל שינויים אחרונים
-
-# עשה שינויים...
-
-git add *.json
-git commit -m "עדכון נתונים"
-git push
-
-# במחשב 2
-git pull  # קבל את השינויים
-```
+המערכת עובדת **ישירות מ-GitHub**, אז:
+- פתח מכל מחשב → הנתונים עדכניים
+- אין צורך ב-`git pull` ידני
+- הכל אוטומטי!
 
 ---
 
 ## 🛠️ פיתוח
 
-### הרצה עם nodemon (reload אוטומטי)
+### הרצה מקומית
 
 ```bash
-npm run dev
+# פשוט פתח את index.html בדפדפן
+# או השתמש בשרת HTTP פשוט:
+python -m http.server 8000
+# או:
+npx http-server
 ```
 
-### בדיקת תחביר
+### מבנה הקוד
+
+```
+bus-manager/
+├── index.html              # עמוד ראשי
+├── github-setup.html       # הגדרת GitHub
+├── users.json             # 👥 משתמשים
+├── data.json              # 🚌 נתונים
+├── settings.json          # ⚙️ הגדרות
+└── js/
+    ├── github-storage.js  # GitHub API client
+    ├── storage.js         # Storage layer
+    ├── auth.js            # אימות
+    ├── app.js             # לוגיקה ראשית
+    ├── buses.js           # אוטובוסים
+    ├── students.js        # תלמידים
+    ├── routes.js          # מסלולים
+    └── maps.js            # Google Maps
+```
+
+---
+
+## 🔒 אבטחה
+
+### Personal Access Token
+
+- ✅ נשמר ב-localStorage של הדפדפן (לא ב-Git!)
+- ✅ לא משותף עם אף אחד
+- ✅ ניתן לבטל בכל עת ב-GitHub
+
+### הרשאות מומלצות
+
+כשיוצרים טוקן, תנו רק הרשאות `repo`:
+- ✅ `repo:status` - גישה לסטטוס
+- ✅ `repo_deployment` - גישה לדפלוימנטים
+- ✅ `public_repo` - גישה למאגרים פומביים
+- ✅ `repo` (Private) - גישה למאגרים פרטיים
+
+**אל תתנו הרשאות מיותרות!**
+
+---
+
+## 💡 טיפים
+
+### 1. עבוד בבטחה עם branches
 
 ```bash
-# בדיקת כל קבצי JavaScript
-for file in js/*.js; do node --check "$file"; done
+# צור ענף לפני שינויים גדולים
+git checkout -b new-feature
 ```
 
-### מבנה ה-API
+### 2. השתמש ב-Tags לגרסאות
 
-השרת מספק REST API:
+```bash
+git tag -a v1.0 -m "Version 1.0 - Stable"
+git push --tags
+```
 
-**Users:**
-- `GET /api/users` - כל המשתמשים
-- `GET /api/users/:uid` - משתמש לפי UID
-- `POST /api/users` - שמירת משתמש
-- `PATCH /api/users/:uid/role` - עדכון תפקיד
-- `PATCH /api/users/:uid/approve` - אישור משתמש
-- `DELETE /api/users/:uid` - מחיקת משתמש
+### 3. גיבויים
 
-**Buses:**
-- `GET /api/buses` - כל האוטובוסים
-- `POST /api/buses` - שמירת אוטובוס
-- `DELETE /api/buses/:id` - מחיקת אוטובוס
+Git הוא הגיבוי, אבל אפשר גם:
+```bash
+# Clone נוסף במקום אחר
+git clone <your-repo-url> backup/
+```
 
-**Students:**
-- `GET /api/students` - כל התלמידים
-- `POST /api/students` - שמירת תלמיד
-- `DELETE /api/students/:id` - מחיקת תלמיד
+### 4. בדוק commits
 
-**Settings:**
-- `GET /api/settings` - הגדרות
-- `POST /api/settings` - שמירת הגדרות
-- `PATCH /api/settings` - עדכון חלקי
+בדף GitHub → "Commits" → תוכל לראות:
+- מתי שונה כל קובץ
+- מי שינה (אם יש כמה משתמשים)
+- מה השתנה (diff)
 
 ---
 
 ## 🐛 פתרון בעיות
 
-### "לא מצליח להתחבר"
-- פתח את `fix-users.html` ואשר את המשתמשים
-- בדוק שהשרת רץ (`npm start`)
+### "Failed to connect to GitHub"
 
-### "המפות לא עובדות"
-- בדוק שהגדרת Google Maps API Key ב-`settings.json`
-- בדוק שהפעלת את ה-APIs הנדרשים ב-Google Cloud
-- פתח Console בדפדפן (F12) וחפש שגיאות
+✅ בדוק:
+- הטוקן תקין?
+- שם המשתמש/מאגר נכונים?
+- הענף קיים?
+- יש לטוקן הרשאות `repo`?
 
-### "השרת לא עולה"
-- ודא ש-Node.js מותקן: `node --version`
-- ודא שהרצת `npm install`
-- בדוק שפורט 3000 לא תפוס: `lsof -i :3000` (Mac/Linux)
+### "API rate limit exceeded"
 
-### "הנתונים לא נשמרים"
-- בדוק שהשרת רץ
-- בדוק את ה-Console בדפדפן לשגיאות
-- ודא שיש הרשאות כתיבה לקבצי JSON
+GitHub מגביל ל-60 requests לשעה ללא אימות, 5000 עם טוקן.
+
+אם הגעת למגבלה:
+- חכה שעה
+- או שדרג את הטוקן
+
+### "Merge conflicts"
+
+אם 2 משתמשים עורכים בו-זמנית:
+1. המערכת תזהה conflict
+2. תצטרך לפתור ידנית ב-GitHub
+3. או להשתמש ב-Git CLI
+
+---
+
+## 📞 תמיכה
+
+יש בעיה? תקלה? שאלה?
+
+1. בדוק את ה-Console בדפדפן (F12)
+2. בדוק את ה-commits ב-GitHub
+3. פתח issue במאגר
 
 ---
 
@@ -264,16 +310,15 @@ MIT License - חופשי לשימוש ושינוי
 
 ---
 
-## 🙏 תודות
+## 🎉 סיכום
 
-- Google Maps API למפות ו-geocoding
-- SheetJS לייבוא Excel
-- Express לשרת פשוט ומהיר
+**מערכת הניהול אוטובוסים הזו:**
 
----
+✅ כותבת ישירות ל-Git
+✅ בלי שרת מקומי
+✅ בלי תלות בענן חיצוני
+✅ commits אוטומטיים
+✅ היסטוריה מלאה
+✅ עובדת מכל מקום
 
-💡 **טיפ**: עשה backup של קבצי ה-JSON לפני עדכונים גדולים!
-
-```bash
-cp data.json data.json.backup
-```
+**פשוט, מהיר, ובטוח!** 🚀

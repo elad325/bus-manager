@@ -1,29 +1,36 @@
 // ===================================
 // מערכת ניהול אוטובוסים - אחסון נתונים
 // ===================================
-// משתמש ב-3 מסדי נתונים JSON נפרדים:
-// 1. users.json - משתמשים
-// 2. data.json - תלמידים ואוטובוסים
-// 3. settings.json - הגדרות API
+// כותב ישירות ל-GitHub - כל שינוי = commit!
 // ===================================
 
 class StorageService {
     constructor() {
-        this.apiUrl = window.location.origin; // Same server
         this.prefix = APP_CONFIG.localStoragePrefix;
+        this.FILES = {
+            users: 'users.json',
+            data: 'data.json',
+            settings: 'settings.json'
+        };
+    }
+
+    // Check if GitHub is configured
+    isGitHubConfigured() {
+        return window.githubStorage && window.githubStorage.isConfigured();
     }
 
     // ===== BUSES =====
 
     async getBuses() {
         try {
-            const response = await fetch(`${this.apiUrl}/api/buses`);
-            if (!response.ok) throw new Error('Failed to fetch buses');
-            return await response.json();
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.data);
+                return data ? (data.buses || []) : [];
+            }
         } catch (error) {
-            console.error('Error getting buses:', error);
-            return this.getLocalBuses();
+            console.error('Error getting buses from GitHub:', error);
         }
+        return this.getLocalBuses();
     }
 
     getLocalBuses() {
@@ -33,17 +40,37 @@ class StorageService {
 
     async saveBus(bus) {
         try {
-            const response = await fetch(`${this.apiUrl}/api/buses`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(bus)
-            });
-            if (!response.ok) throw new Error('Failed to save bus');
-            return await response.json();
+            if (this.isGitHubConfigured()) {
+                // Get current data
+                let data = await window.githubStorage.getFile(this.FILES.data) || { buses: [], students: [] };
+                const buses = data.buses || [];
+
+                // Add or update bus
+                if (!bus.id) {
+                    bus.id = 'bus_' + Date.now();
+                }
+                const index = buses.findIndex(b => b.id === bus.id);
+                if (index >= 0) {
+                    buses[index] = bus;
+                } else {
+                    buses.push(bus);
+                }
+
+                data.buses = buses;
+
+                // Save to GitHub (creates commit!)
+                await window.githubStorage.saveFile(
+                    this.FILES.data,
+                    data,
+                    `Update bus: ${bus.name || bus.id}`
+                );
+
+                return bus;
+            }
         } catch (error) {
-            console.error('Error saving bus:', error);
-            return this.saveLocalBus(bus);
+            console.error('Error saving bus to GitHub:', error);
         }
+        return this.saveLocalBus(bus);
     }
 
     saveLocalBus(bus) {
@@ -63,15 +90,22 @@ class StorageService {
 
     async deleteBus(busId) {
         try {
-            const response = await fetch(`${this.apiUrl}/api/buses/${busId}`, {
-                method: 'DELETE'
-            });
-            if (!response.ok) throw new Error('Failed to delete bus');
-            return true;
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.data) || { buses: [], students: [] };
+                data.buses = (data.buses || []).filter(b => b.id !== busId);
+
+                await window.githubStorage.saveFile(
+                    this.FILES.data,
+                    data,
+                    `Delete bus: ${busId}`
+                );
+
+                return true;
+            }
         } catch (error) {
-            console.error('Error deleting bus:', error);
-            return this.deleteLocalBus(busId);
+            console.error('Error deleting bus from GitHub:', error);
         }
+        return this.deleteLocalBus(busId);
     }
 
     deleteLocalBus(busId) {
@@ -84,13 +118,14 @@ class StorageService {
 
     async getStudents() {
         try {
-            const response = await fetch(`${this.apiUrl}/api/students`);
-            if (!response.ok) throw new Error('Failed to fetch students');
-            return await response.json();
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.data);
+                return data ? (data.students || []) : [];
+            }
         } catch (error) {
-            console.error('Error getting students:', error);
-            return this.getLocalStudents();
+            console.error('Error getting students from GitHub:', error);
         }
+        return this.getLocalStudents();
     }
 
     getLocalStudents() {
@@ -100,17 +135,34 @@ class StorageService {
 
     async saveStudent(student) {
         try {
-            const response = await fetch(`${this.apiUrl}/api/students`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(student)
-            });
-            if (!response.ok) throw new Error('Failed to save student');
-            return await response.json();
+            if (this.isGitHubConfigured()) {
+                let data = await window.githubStorage.getFile(this.FILES.data) || { buses: [], students: [] };
+                const students = data.students || [];
+
+                if (!student.id) {
+                    student.id = 'student_' + Date.now();
+                }
+                const index = students.findIndex(s => s.id === student.id);
+                if (index >= 0) {
+                    students[index] = student;
+                } else {
+                    students.push(student);
+                }
+
+                data.students = students;
+
+                await window.githubStorage.saveFile(
+                    this.FILES.data,
+                    data,
+                    `Update student: ${student.name || student.id}`
+                );
+
+                return student;
+            }
         } catch (error) {
-            console.error('Error saving student:', error);
-            return this.saveLocalStudent(student);
+            console.error('Error saving student to GitHub:', error);
         }
+        return this.saveLocalStudent(student);
     }
 
     saveLocalStudent(student) {
@@ -130,15 +182,22 @@ class StorageService {
 
     async deleteStudent(studentId) {
         try {
-            const response = await fetch(`${this.apiUrl}/api/students/${studentId}`, {
-                method: 'DELETE'
-            });
-            if (!response.ok) throw new Error('Failed to delete student');
-            return true;
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.data) || { buses: [], students: [] };
+                data.students = (data.students || []).filter(s => s.id !== studentId);
+
+                await window.githubStorage.saveFile(
+                    this.FILES.data,
+                    data,
+                    `Delete student: ${studentId}`
+                );
+
+                return true;
+            }
         } catch (error) {
-            console.error('Error deleting student:', error);
-            return this.deleteLocalStudent(studentId);
+            console.error('Error deleting student from GitHub:', error);
         }
+        return this.deleteLocalStudent(studentId);
     }
 
     deleteLocalStudent(studentId) {
@@ -151,13 +210,14 @@ class StorageService {
 
     async getUsers() {
         try {
-            const response = await fetch(`${this.apiUrl}/api/users`);
-            if (!response.ok) throw new Error('Failed to fetch users');
-            return await response.json();
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.users);
+                return data ? (data.users || []) : [];
+            }
         } catch (error) {
-            console.error('Error getting users:', error);
-            return this.getLocalUsers();
+            console.error('Error getting users from GitHub:', error);
         }
+        return this.getLocalUsers();
     }
 
     getLocalUsers() {
@@ -167,17 +227,31 @@ class StorageService {
 
     async saveUser(user) {
         try {
-            const response = await fetch(`${this.apiUrl}/api/users`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(user)
-            });
-            if (!response.ok) throw new Error('Failed to save user');
-            return await response.json();
+            if (this.isGitHubConfigured()) {
+                let data = await window.githubStorage.getFile(this.FILES.users) || { users: [] };
+                const users = data.users || [];
+
+                const index = users.findIndex(u => u.uid === user.uid);
+                if (index >= 0) {
+                    users[index] = user;
+                } else {
+                    users.push(user);
+                }
+
+                data.users = users;
+
+                await window.githubStorage.saveFile(
+                    this.FILES.users,
+                    data,
+                    `Update user: ${user.email}`
+                );
+
+                return user;
+            }
         } catch (error) {
-            console.error('Error saving user:', error);
-            return this.saveLocalUser(user);
+            console.error('Error saving user to GitHub:', error);
         }
+        return this.saveLocalUser(user);
     }
 
     saveLocalUser(user) {
@@ -193,71 +267,85 @@ class StorageService {
     }
 
     async getUserByUid(uid) {
-        try {
-            const response = await fetch(`${this.apiUrl}/api/users/${uid}`);
-            if (response.status === 404) return null;
-            if (!response.ok) throw new Error('Failed to fetch user');
-            return await response.json();
-        } catch (error) {
-            console.error('Error getting user:', error);
-            const users = this.getLocalUsers();
-            return users.find(u => u.uid === uid) || null;
-        }
+        const users = await this.getUsers();
+        return users.find(u => u.uid === uid) || null;
     }
 
     async updateUserRole(uid, role) {
         try {
-            const response = await fetch(`${this.apiUrl}/api/users/${uid}/role`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ role })
-            });
-            if (!response.ok) throw new Error('Failed to update role');
-            return true;
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.users) || { users: [] };
+                const user = (data.users || []).find(u => u.uid === uid);
+                if (user) {
+                    user.role = role;
+                    await window.githubStorage.saveFile(
+                        this.FILES.users,
+                        data,
+                        `Update user role: ${uid}`
+                    );
+                }
+                return true;
+            }
         } catch (error) {
             console.error('Error updating user role:', error);
-            const users = this.getLocalUsers();
-            const user = users.find(u => u.uid === uid);
-            if (user) {
-                user.role = role;
-                localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
-            }
-            return true;
         }
+
+        const users = this.getLocalUsers();
+        const user = users.find(u => u.uid === uid);
+        if (user) {
+            user.role = role;
+            localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
+        }
+        return true;
     }
 
     async approveUser(uid) {
         try {
-            const response = await fetch(`${this.apiUrl}/api/users/${uid}/approve`, {
-                method: 'PATCH'
-            });
-            if (!response.ok) throw new Error('Failed to approve user');
-            return true;
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.users) || { users: [] };
+                const user = (data.users || []).find(u => u.uid === uid);
+                if (user) {
+                    user.approved = true;
+                    await window.githubStorage.saveFile(
+                        this.FILES.users,
+                        data,
+                        `Approve user: ${uid}`
+                    );
+                }
+                return true;
+            }
         } catch (error) {
             console.error('Error approving user:', error);
-            const users = this.getLocalUsers();
-            const user = users.find(u => u.uid === uid);
-            if (user) {
-                user.approved = true;
-                localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
-            }
-            return true;
         }
+
+        const users = this.getLocalUsers();
+        const user = users.find(u => u.uid === uid);
+        if (user) {
+            user.approved = true;
+            localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
+        }
+        return true;
     }
 
     async rejectUser(uid) {
         try {
-            const response = await fetch(`${this.apiUrl}/api/users/${uid}`, {
-                method: 'DELETE'
-            });
-            if (!response.ok) throw new Error('Failed to reject user');
-            return true;
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.users) || { users: [] };
+                data.users = (data.users || []).filter(u => u.uid !== uid);
+                await window.githubStorage.saveFile(
+                    this.FILES.users,
+                    data,
+                    `Reject user: ${uid}`
+                );
+                return true;
+            }
         } catch (error) {
             console.error('Error rejecting user:', error);
-            const users = this.getLocalUsers().filter(u => u.uid !== uid);
-            localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
-            return true;
         }
+
+        const users = this.getLocalUsers().filter(u => u.uid !== uid);
+        localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
+        return true;
     }
 
     async getPendingUsers() {
@@ -269,33 +357,37 @@ class StorageService {
 
     async getSettings() {
         try {
-            const response = await fetch(`${this.apiUrl}/api/settings`);
-            if (!response.ok) throw new Error('Failed to fetch settings');
-            return await response.json();
+            if (this.isGitHubConfigured()) {
+                const data = await window.githubStorage.getFile(this.FILES.settings);
+                return data || {};
+            }
         } catch (error) {
-            console.error('Error getting settings:', error);
-            const data = localStorage.getItem(this.prefix + APP_CONFIG.keys.settings);
-            return data ? JSON.parse(data) : {};
+            console.error('Error getting settings from GitHub:', error);
         }
+
+        const data = localStorage.getItem(this.prefix + APP_CONFIG.keys.settings);
+        return data ? JSON.parse(data) : {};
     }
 
     async saveSettings(settings) {
         try {
-            const response = await fetch(`${this.apiUrl}/api/settings`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(settings)
-            });
-            if (!response.ok) throw new Error('Failed to save settings');
+            if (this.isGitHubConfigured()) {
+                await window.githubStorage.saveFile(
+                    this.FILES.settings,
+                    settings,
+                    'Update settings'
+                );
 
-            // Also save to localStorage as backup
-            localStorage.setItem(this.prefix + APP_CONFIG.keys.settings, JSON.stringify(settings));
-            return true;
+                // Also save to localStorage as backup
+                localStorage.setItem(this.prefix + APP_CONFIG.keys.settings, JSON.stringify(settings));
+                return true;
+            }
         } catch (error) {
-            console.error('Error saving settings:', error);
-            localStorage.setItem(this.prefix + APP_CONFIG.keys.settings, JSON.stringify(settings));
-            return true;
+            console.error('Error saving settings to GitHub:', error);
         }
+
+        localStorage.setItem(this.prefix + APP_CONFIG.keys.settings, JSON.stringify(settings));
+        return true;
     }
 
     // ===== STATS =====
