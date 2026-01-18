@@ -16,7 +16,10 @@
 
 ### 1. הגדרת API Keys (אופציונלי אבל מומלץ)
 
-המערכת תומכת בשתי דרכים לשמור הגדרות:
+המערכת תומכת ב**3 מסדי נתונים נפרדים** להפרדה מלאה:
+- 👥 **Users DB** - משתמשים ואימות
+- 🚌 **Data DB** - תלמידים ואוטובוסים
+- ⚙️ **Settings DB** - הגדרות API
 
 #### **אפשרות א': קובץ קונפיגורציה מקומי** (מומלץ - לא יימחק!)
 
@@ -28,14 +31,30 @@
 2. ערוך את `config.local.js` והכנס את המפתחות שלך:
    ```javascript
    window.LOCAL_CONFIG = {
-       firebase: {
+       // 👥 Firebase למשתמשים (Users DB)
+       firebaseUsers: {
            apiKey: "YOUR_FIREBASE_API_KEY",
-           authDomain: "YOUR_PROJECT.firebaseapp.com",
-           projectId: "YOUR_PROJECT_ID",
-           storageBucket: "YOUR_PROJECT.appspot.com",
-           messagingSenderId: "YOUR_SENDER_ID",
-           appId: "YOUR_APP_ID"
+           authDomain: "YOUR_USERS_PROJECT.firebaseapp.com",
+           projectId: "YOUR_USERS_PROJECT_ID",
+           // ...
        },
+
+       // 🚌 Firebase לתלמידים ואוטובוסים (Data DB)
+       firebaseData: {
+           apiKey: "YOUR_FIREBASE_API_KEY",
+           authDomain: "YOUR_DATA_PROJECT.firebaseapp.com",
+           projectId: "YOUR_DATA_PROJECT_ID",
+           // ...
+       },
+
+       // ⚙️ Firebase להגדרות (Settings DB)
+       firebaseSettings: {
+           apiKey: "YOUR_FIREBASE_API_KEY",
+           authDomain: "YOUR_SETTINGS_PROJECT.firebaseapp.com",
+           projectId: "YOUR_SETTINGS_PROJECT_ID",
+           // ...
+       },
+
        googleMaps: {
            apiKey: "YOUR_GOOGLE_MAPS_API_KEY"
        },
@@ -49,6 +68,8 @@
 
 3. **הקובץ לא יועלה ל-Git** - ההגדרות שלך יישארו במחשב! 🔒
 
+**💡 טיפ**: אם אתה רוצה להשתמש באותו Firebase Project לכל 3 ה-DBs, פשוט העתק את אותם פרטי Firebase לשלושת הקונפיגורציות!
+
 #### **אפשרות ב': דרך ממשק ההגדרות**
 
 1. פתח את האפליקציה
@@ -61,12 +82,31 @@
 המערכת טוענת הגדרות לפי הסדר הבא:
 
 1. 📁 **config.local.js** (קובץ מקומי - עדיפות ראשונה)
-2. ☁️ **Firestore** (קולקציה `settings` - אם Firebase מוגדר)
+   - 👥 `firebaseUsers` → Users DB
+   - 🚌 `firebaseData` → Data DB
+   - ⚙️ `firebaseSettings` → Settings DB
+2. ☁️ **Firestore** (כל DB נפרד - אם Firebase מוגדר)
 3. 💾 **localStorage** (גיבוי מקומי)
 
 זה אומר שאם יש לך `config.local.js`, המערכת תשתמש בו תמיד, ולא תשנה אותו!
 
-### 3. הרצת האפליקציה
+### 3. מבנה מסדי הנתונים
+
+המערכת משתמשת ב-3 Firebase databases נפרדים:
+
+| DB | מה נמצא בו | יתרונות |
+|----|-----------|---------|
+| 👥 **Users DB** | משתמשים, אימות, הרשאות | אבטחה, הפרדת גישות |
+| 🚌 **Data DB** | תלמידים, אוטובוסים, מסלולים | ביצועים, ניהול נפרד |
+| ⚙️ **Settings DB** | API Keys, הגדרות מערכת | לא נמחק, נפרד מנתונים |
+
+**למה זה חשוב?**
+- ✅ הגדרות לא נמחקות בטעות
+- ✅ אפשר לתת גישות שונות לכל DB
+- ✅ גיבוי נפרד לכל סוג נתונים
+- ✅ ביצועים טובים יותר
+
+### 4. הרצת האפליקציה
 
 #### **מצב פיתוח (מומלץ):**
 ```bash

@@ -1,28 +1,51 @@
 // ===================================
 // מערכת ניהול אוטובוסים - אחסון נתונים
 // ===================================
+// תומך בשלושה Firebase databases נפרדים:
+// 1. Users DB - משתמשים
+// 2. Data DB - תלמידים ואוטובוסים
+// 3. Settings DB - הגדרות
+// ===================================
 
 class StorageService {
     constructor() {
         this.prefix = APP_CONFIG.localStoragePrefix;
         this.useFirebase = false;
-        this.db = null;
+        this.usersDb = null;     // 👥 Users DB - משתמשים
+        this.dataDb = null;      // 🚌 Data DB - תלמידים ואוטובוסים
+        this.settingsDb = null;  // ⚙️ Settings DB - הגדרות
+        this.db = null;          // Backward compatibility
     }
 
-    // Initialize with Firebase if available
-    init(firebaseDb = null) {
-        if (firebaseDb) {
-            this.db = firebaseDb;
+    // Initialize with Firebase databases
+    // usersFirestore - for users
+    // dataFirestore - for buses and students
+    // settingsFirestore - for settings
+    init(dataFirestore = null, settingsFirestore = null, usersFirestore = null) {
+        if (usersFirestore) {
+            this.usersDb = usersFirestore;
+            console.log('👥 Users DB initialized in storage');
+        }
+
+        if (dataFirestore) {
+            this.dataDb = dataFirestore;
+            this.db = dataFirestore; // Backward compatibility
             this.useFirebase = true;
+            console.log('🚌 Data DB initialized in storage');
+        }
+
+        if (settingsFirestore) {
+            this.settingsDb = settingsFirestore;
+            console.log('⚙️ Settings DB initialized in storage');
         }
     }
 
     // ===== BUSES =====
 
     async getBuses() {
-        if (this.useFirebase && this.db) {
+        if (this.dataDb) {
             try {
-                const snapshot = await this.db.collection('buses').get();
+                const snapshot = await this.dataDb.collection('buses').get();
                 return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             } catch (error) {
                 console.error('Error getting buses from Firebase:', error);
@@ -38,12 +61,12 @@ class StorageService {
     }
 
     async saveBus(bus) {
-        if (this.useFirebase && this.db) {
+        if (this.dataDb) {
             try {
                 if (bus.id) {
-                    await this.db.collection('buses').doc(bus.id).set(bus);
+                    await this.dataDb.collection('buses').doc(bus.id).set(bus);
                 } else {
-                    const docRef = await this.db.collection('buses').add(bus);
+                    const docRef = await this.dataDb.collection('buses').add(bus);
                     bus.id = docRef.id;
                 }
                 return bus;
@@ -71,9 +94,9 @@ class StorageService {
     }
 
     async deleteBus(busId) {
-        if (this.useFirebase && this.db) {
+        if (this.dataDb) {
             try {
-                await this.db.collection('buses').doc(busId).delete();
+                await this.dataDb.collection('buses').doc(busId).delete();
                 return true;
             } catch (error) {
                 console.error('Error deleting bus from Firebase:', error);
@@ -92,9 +115,9 @@ class StorageService {
     // ===== STUDENTS =====
 
     async getStudents() {
-        if (this.useFirebase && this.db) {
+        if (this.dataDb) {
             try {
-                const snapshot = await this.db.collection('students').get();
+                const snapshot = await this.dataDb.collection('students').get();
                 return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             } catch (error) {
                 console.error('Error getting students from Firebase:', error);
@@ -115,12 +138,12 @@ class StorageService {
     }
 
     async saveStudent(student) {
-        if (this.useFirebase && this.db) {
+        if (this.dataDb) {
             try {
                 if (student.id) {
-                    await this.db.collection('students').doc(student.id).set(student);
+                    await this.dataDb.collection('students').doc(student.id).set(student);
                 } else {
-                    const docRef = await this.db.collection('students').add(student);
+                    const docRef = await this.dataDb.collection('students').add(student);
                     student.id = docRef.id;
                 }
                 return student;
@@ -148,9 +171,9 @@ class StorageService {
     }
 
     async deleteStudent(studentId) {
-        if (this.useFirebase && this.db) {
+        if (this.dataDb) {
             try {
-                await this.db.collection('students').doc(studentId).delete();
+                await this.dataDb.collection('students').doc(studentId).delete();
                 return true;
             } catch (error) {
                 console.error('Error deleting student from Firebase:', error);
@@ -169,9 +192,9 @@ class StorageService {
     // ===== USERS =====
 
     async getUsers() {
-        if (this.useFirebase && this.db) {
+        if (this.usersDb) {
             try {
-                const snapshot = await this.db.collection('users').get();
+                const snapshot = await this.usersDb.collection('users').get();
                 return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             } catch (error) {
                 console.error('Error getting users from Firebase:', error);
@@ -187,9 +210,9 @@ class StorageService {
     }
 
     async saveUser(user) {
-        if (this.useFirebase && this.db) {
+        if (this.usersDb) {
             try {
-                await this.db.collection('users').doc(user.uid).set({
+                await this.usersDb.collection('users').doc(user.uid).set({
                     email: user.email,
                     role: user.role,
                     createdAt: user.createdAt || new Date().toISOString()
@@ -216,9 +239,9 @@ class StorageService {
     }
 
     async getUserByUid(uid) {
-        if (this.useFirebase && this.db) {
+        if (this.usersDb) {
             try {
-                const doc = await this.db.collection('users').doc(uid).get();
+                const doc = await this.usersDb.collection('users').doc(uid).get();
                 if (doc.exists) {
                     return { id: doc.id, ...doc.data() };
                 }
@@ -231,9 +254,9 @@ class StorageService {
     }
 
     async updateUserRole(uid, role) {
-        if (this.useFirebase && this.db) {
+        if (this.usersDb) {
             try {
-                await this.db.collection('users').doc(uid).update({ role });
+                await this.usersDb.collection('users').doc(uid).update({ role });
                 return true;
             } catch (error) {
                 console.error('Error updating user role:', error);
@@ -249,9 +272,9 @@ class StorageService {
     }
 
     async approveUser(uid) {
-        if (this.useFirebase && this.db) {
+        if (this.usersDb) {
             try {
-                await this.db.collection('users').doc(uid).update({ approved: true });
+                await this.usersDb.collection('users').doc(uid).update({ approved: true });
                 return true;
             } catch (error) {
                 console.error('Error approving user:', error);
@@ -267,9 +290,9 @@ class StorageService {
     }
 
     async rejectUser(uid) {
-        if (this.useFirebase && this.db) {
+        if (this.usersDb) {
             try {
-                await this.db.collection('users').doc(uid).delete();
+                await this.usersDb.collection('users').doc(uid).delete();
                 return true;
             } catch (error) {
                 console.error('Error rejecting user:', error);
@@ -287,18 +310,18 @@ class StorageService {
 
     // ===== SETTINGS =====
 
-    // Get settings from Firestore or localStorage
+    // Get settings from Settings DB or localStorage
     async getSettings() {
-        // First, try to get from Firestore (separate collection)
-        if (this.useFirebase && this.db) {
+        // First, try to get from Settings DB (separate database)
+        if (this.settingsDb) {
             try {
-                const doc = await this.db.collection('settings').doc('app_settings').get();
+                const doc = await this.settingsDb.collection('settings').doc('app_settings').get();
                 if (doc.exists) {
-                    console.log('Using settings from Firestore');
+                    console.log('⚙️ Using settings from Settings DB');
                     return doc.data();
                 }
             } catch (error) {
-                console.error('Error getting settings from Firestore:', error);
+                console.error('Error getting settings from Settings DB:', error);
             }
         }
 
@@ -307,15 +330,15 @@ class StorageService {
         return data ? JSON.parse(data) : {};
     }
 
-    // Save settings to both Firestore and localStorage
+    // Save settings to both Settings DB and localStorage
     async saveSettings(settings) {
-        // Save to Firestore if available
-        if (this.useFirebase && this.db) {
+        // Save to Settings DB if available
+        if (this.settingsDb) {
             try {
-                await this.db.collection('settings').doc('app_settings').set(settings, { merge: true });
-                console.log('Settings saved to Firestore');
+                await this.settingsDb.collection('settings').doc('app_settings').set(settings, { merge: true });
+                console.log('⚙️ Settings saved to Settings DB');
             } catch (error) {
-                console.error('Error saving settings to Firestore:', error);
+                console.error('Error saving settings to Settings DB:', error);
             }
         }
 
