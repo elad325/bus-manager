@@ -131,7 +131,7 @@ class RouteManager {
         } catch (error) {
             console.error('Error calculating route:', error);
             window.app.showToast(error.message || 'שגיאה בחישוב המסלול', 'error');
-            routeInfo.innerHTML = `<p class="empty-state" style="color: var(--danger);">${error.message}</p>`;
+            routeInfo.innerHTML = `<p class="empty-state" style="color: var(--danger);">${this.escapeHtml(error.message || 'שגיאה בחישוב המסלול')}</p>`;
         }
     }
 
