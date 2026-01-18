@@ -12,7 +12,7 @@
       "uid": "local_1768763586152",
       "email": "admin@test.com",
       "password": "MTIzNDU2",
-      "role": "viewer",
+      "role": "admin",
       "approved": true,
       "createdAt": "2026-01-18T19:13:06.152Z"
     }
