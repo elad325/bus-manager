@@ -438,17 +438,6 @@ class App {
 
         usersList.innerHTML = html;
 
-        // Add event listeners to role selects
-
-                ${user.uid !== window.auth.getUser()?.uid ? `
-                <select class="select-input user-role-select" style="width: auto;" data-user-id="${this.escapeHtml(user.uid)}">
-                    <option value="viewer" ${user.role === 'viewer' ? 'selected' : ''}>צופה</option>
-                    <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>מנהל</option>
-                </select>
-                ` : ''}
-            </div>
-        `).join('');
-
         // Add event listeners to role selects (safer than inline onchange)
 
         usersList.querySelectorAll('.user-role-select').forEach(select => {
