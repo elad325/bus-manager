@@ -50,6 +50,30 @@ class GitHubStorage {
         return !!(this.token && this.owner && this.repo);
     }
 
+    // Auto-detect owner/repo from current URL (GitHub Pages)
+    static autoDetectRepo() {
+        const url = window.location.href;
+
+        // Pattern: https://username.github.io/repo-name/
+        const githubPagesPattern = /https?:\/\/([^.]+)\.github\.io\/([^\/]+)/;
+        const match = url.match(githubPagesPattern);
+
+        if (match) {
+            return {
+                owner: match[1],
+                repo: match[2],
+                detected: true
+            };
+        }
+
+        // If not GitHub Pages, return null
+        return {
+            owner: null,
+            repo: null,
+            detected: false
+        };
+    }
+
     // Get file from GitHub
     async getFile(path) {
         if (!this.isConfigured()) {
