@@ -324,9 +324,19 @@ class StudentManager {
                     const student = students[i];
                     const previousBusId = student.busId;
 
-                    window.app.showToast(`מעבד תלמיד ${i + 1} מתוך ${students.length}...`, 'info');
+                    // Show progress every 5 students or on last student to avoid toast flooding
+                    if ((i + 1) % 5 === 0 || i === students.length - 1) {
+                        window.app.showToast(`מעבד תלמיד ${i + 1} מתוך ${students.length}...`, 'info');
+                    }
 
                     try {
+                        // Skip if student has no address
+                        if (!student.address || student.address.trim() === '') {
+                            console.warn(`Student ${student.id} has no address, skipping`);
+                            failCount++;
+                            continue;
+                        }
+
                         const bestBus = await window.mapsService.findBestBusForAddress(student.address);
 
                         if (bestBus) {

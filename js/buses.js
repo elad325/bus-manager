@@ -63,7 +63,16 @@ class BusManager {
             return;
         }
 
-        container.innerHTML = this.buses.map(bus => this.renderBusCard(bus)).join('');
+        // Performance optimization: get students once and create count map
+        const students = window.storage.getLocalStudents();
+        const studentCountByBus = {};
+        students.forEach(student => {
+            if (student.busId) {
+                studentCountByBus[student.busId] = (studentCountByBus[student.busId] || 0) + 1;
+            }
+        });
+
+        container.innerHTML = this.buses.map(bus => this.renderBusCard(bus, studentCountByBus[bus.id] || 0)).join('');
 
         // Add event listeners to cards
         this.buses.forEach(bus => {
@@ -78,8 +87,7 @@ class BusManager {
     }
 
     // Render single bus card
-    renderBusCard(bus) {
-        const studentCount = window.storage.getLocalStudents().filter(s => s.busId === bus.id).length;
+    renderBusCard(bus, studentCount = 0) {
         const isAdmin = window.auth.checkIsAdmin();
 
         return `
