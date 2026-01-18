@@ -1,32 +1,45 @@
 // ===================================
 // מערכת ניהול אוטובוסים - אימות משתמשים
 // ===================================
+// משתמש ב-Firebase Users DB נפרד
+// ===================================
 
 class AuthService {
     constructor() {
         this.currentUser = null;
         this.isAdmin = false;
         this.auth = null;
+        this.usersDb = null;     // 👥 Users DB
         this.useFirebase = false;
         this.onAuthChangeCallback = null;
     }
 
-    // Initialize Firebase Auth
-    async init() {
-        const config = getFirebaseConfig();
+    // Initialize Firebase Auth and Users DB
+    async init(usersFirestore = null) {
+        const config = getFirebaseUsersConfig();
 
-        if (isFirebaseConfigured()) {
+        if (isFirebaseUsersConfigured()) {
             try {
-                // Initialize Firebase if not already done
-                if (!firebase.apps.length) {
-                    firebase.initializeApp(config);
+                // Initialize Firebase Users app
+                let usersApp;
+                const existingApp = firebase.apps.find(app => app.name === 'users');
+                if (existingApp) {
+                    usersApp = existingApp;
+                } else {
+                    usersApp = firebase.initializeApp(config, 'users');
                 }
 
-                this.auth = firebase.auth();
+                this.auth = usersApp.auth();
                 this.useFirebase = true;
 
-                // Initialize storage with Firestore
-                window.storage.init(firebase.firestore());
+                // Use provided Firestore or create one
+                if (usersFirestore) {
+                    this.usersDb = usersFirestore;
+                } else {
+                    this.usersDb = usersApp.firestore();
+                }
+
+                console.log('👥 Users DB initialized');
 
                 // Listen for auth state changes
                 this.auth.onAuthStateChanged(async (user) => {

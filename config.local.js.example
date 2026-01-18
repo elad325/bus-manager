@@ -1,0 +1,52 @@
+// ===================================
+// קובץ הגדרות מקומי - לא יועלה ל-Git
+// ===================================
+// העתק קובץ זה ל-config.local.js והכנס את המפתחות שלך
+// cp config.local.js.example config.local.js
+
+window.LOCAL_CONFIG = {
+    // 👥 Firebase למשתמשים (Users DB)
+    firebaseUsers: {
+        apiKey: "YOUR_FIREBASE_API_KEY",
+        authDomain: "YOUR_PROJECT.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT.appspot.com",
+        messagingSenderId: "YOUR_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    },
+
+    // 🚌 Firebase לתלמידים ואוטובוסים (Data DB)
+    firebaseData: {
+        apiKey: "YOUR_FIREBASE_API_KEY",
+        authDomain: "YOUR_DATA_PROJECT.firebaseapp.com",
+        projectId: "YOUR_DATA_PROJECT_ID",
+        storageBucket: "YOUR_DATA_PROJECT.appspot.com",
+        messagingSenderId: "YOUR_DATA_SENDER_ID",
+        appId: "YOUR_DATA_APP_ID"
+    },
+
+    // ⚙️ Firebase להגדרות (Settings DB)
+    firebaseSettings: {
+        apiKey: "YOUR_FIREBASE_API_KEY",
+        authDomain: "YOUR_SETTINGS_PROJECT.firebaseapp.com",
+        projectId: "YOUR_SETTINGS_PROJECT_ID",
+        storageBucket: "YOUR_SETTINGS_PROJECT.appspot.com",
+        messagingSenderId: "YOUR_SETTINGS_SENDER_ID",
+        appId: "YOUR_SETTINGS_APP_ID"
+    },
+
+    // 🗺️ Google Maps API
+    googleMaps: {
+        apiKey: "YOUR_GOOGLE_MAPS_API_KEY"
+    },
+
+    // 📊 Google Sheets API
+    googleSheets: {
+        apiKey: "YOUR_GOOGLE_SHEETS_API_KEY",
+        clientId: "YOUR_CLIENT_ID.apps.googleusercontent.com",
+        spreadsheetId: "YOUR_SPREADSHEET_ID"
+    }
+};
+
+// ⚡ אפשרות מהירה: אם אתה רוצה להשתמש באותו Firebase Project לכולם,
+// פשוט העתק את אותם פרטי Firebase לשלושת הקונפיגורציות (firebaseUsers, firebaseData, firebaseSettings)
