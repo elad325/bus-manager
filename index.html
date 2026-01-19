@@ -31,27 +31,34 @@
                     <div class="login-header">
                         <div class="logo">🚌</div>
                         <h1>מערכת ניהול אוטובוסים</h1>
-                        <p>התחבר כדי להמשיך</p>
+                        <p>התחבר באמצעות GitHub</p>
                     </div>
-                    <form id="login-form" class="login-form">
-                        <div class="form-group">
-                            <label for="email">אימייל</label>
-                            <input type="email" id="email" required placeholder="your@email.com">
+                    <div class="login-form">
+                        <div class="github-login-info">
+                            <p>🔐 המערכת משתמשת ב-GitHub לאימות בטוח</p>
+                            <p>לא נשמרים סיסמאות - הכל דרך GitHub!</p>
                         </div>
-                        <div class="form-group">
-                            <label for="password">סיסמה</label>
-                            <input type="password" id="password" required placeholder="••••••••">
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-full">
-                            <span id="login-btn-text">התחבר</span>
+
+                        <button type="button" id="github-login-btn" class="btn btn-primary btn-full">
+                            <span>🔑 התחבר עם GitHub</span>
                         </button>
-                        <div class="form-divider">
-                            <span>או</span>
+
+                        <div id="github-setup-info" class="info-box hidden">
+                            <p>⚠️ נדרש להגדיר את GitHub תחילה</p>
+                            <button type="button" id="go-to-settings-btn" class="btn btn-secondary">
+                                📋 עבור להגדרות
+                            </button>
                         </div>
-                        <button type="button" id="register-btn" class="btn btn-secondary btn-full">
-                            צור חשבון חדש
-                        </button>
-                    </form>
+
+                        <div id="pending-approval-info" class="info-box hidden">
+                            <p>⏳ החשבון שלך ממתין לאישור מנהל</p>
+                            <p>פרטי המשתמש שלך:</p>
+                            <div id="pending-user-info"></div>
+                            <button type="button" id="logout-pending-btn" class="btn btn-secondary">
+                                יציאה
+                            </button>
+                        </div>
+                    </div>
                     <div id="login-error" class="error-message hidden"></div>
                 </div>
             </div>
