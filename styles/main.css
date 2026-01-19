@@ -384,6 +384,39 @@ body {
     font-size: var(--font-size-sm);
 }
 
+.info-box {
+    background: hsla(var(--primary-hue), 70%, 50%, 0.1);
+    border: 1px solid var(--primary);
+    color: var(--text-primary);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    margin-top: var(--spacing-lg);
+    text-align: center;
+}
+
+.info-box p {
+    margin-bottom: var(--spacing-sm);
+    color: var(--text-secondary);
+}
+
+.info-box p:last-of-type {
+    margin-bottom: var(--spacing-md);
+}
+
+.github-login-info {
+    text-align: center;
+    padding: var(--spacing-lg);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.github-login-info p {
+    margin: var(--spacing-xs) 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
 /* ===================================
    Buttons
    =================================== */

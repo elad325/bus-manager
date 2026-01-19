@@ -39,16 +39,25 @@ class App {
 
     // Setup global event listeners
     setupEventListeners() {
-        // Login form
-        const loginForm = document.getElementById('login-form');
-        if (loginForm) {
-            loginForm.addEventListener('submit', (e) => this.handleLogin(e));
+        // GitHub login button
+        const githubLoginBtn = document.getElementById('github-login-btn');
+        if (githubLoginBtn) {
+            githubLoginBtn.addEventListener('click', () => this.handleGitHubLogin());
         }
 
-        // Register button
-        const registerBtn = document.getElementById('register-btn');
-        if (registerBtn) {
-            registerBtn.addEventListener('click', () => this.handleRegister());
+        // Go to settings button (from login page)
+        const goToSettingsBtn = document.getElementById('go-to-settings-btn');
+        if (goToSettingsBtn) {
+            goToSettingsBtn.addEventListener('click', () => {
+                this.showMainApp();
+                this.navigateTo('settings');
+            });
+        }
+
+        // Logout from pending approval
+        const logoutPendingBtn = document.getElementById('logout-pending-btn');
+        if (logoutPendingBtn) {
+            logoutPendingBtn.addEventListener('click', () => this.handleLogout());
         }
 
         // Logout button
@@ -231,60 +240,59 @@ class App {
         }
     }
 
-    // Handle login
-    async handleLogin(e) {
-        e.preventDefault();
-
-        const email = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value;
+    // Handle GitHub login
+    async handleGitHubLogin() {
         const errorEl = document.getElementById('login-error');
-        const btnText = document.getElementById('login-btn-text');
+        const setupInfoEl = document.getElementById('github-setup-info');
+        const pendingInfoEl = document.getElementById('pending-approval-info');
+        const githubLoginBtn = document.getElementById('github-login-btn');
 
+        // Hide all messages
         errorEl.classList.add('hidden');
-        btnText.textContent = 'מתחבר...';
+        setupInfoEl.classList.add('hidden');
+        pendingInfoEl.classList.add('hidden');
 
-        const result = await window.auth.login(email, password);
+        // Change button text
+        const originalText = githubLoginBtn.innerHTML;
+        githubLoginBtn.innerHTML = '<span>⏳ מתחבר...</span>';
+        githubLoginBtn.disabled = true;
 
-        if (result.success) {
-            this.showMainApp();
-        } else {
-            errorEl.textContent = result.error;
-            errorEl.classList.remove('hidden');
-        }
+        try {
+            const result = await window.auth.login();
 
-        btnText.textContent = 'התחבר';
-    }
-
-    // Handle register
-    async handleRegister() {
-        const email = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value;
-        const errorEl = document.getElementById('login-error');
-
-        if (!email || !password) {
-            errorEl.textContent = 'אנא מלא את כל השדות';
-            errorEl.classList.remove('hidden');
-            return;
-        }
-
-        errorEl.classList.add('hidden');
-
-        const result = await window.auth.register(email, password);
-
-        if (result.success) {
-            if (result.pending) {
-                // User registered but needs approval
-                errorEl.textContent = 'ההרשמה בוצעה בהצלחה! החשבון ממתין לאישור מנהל.';
-                errorEl.style.color = 'var(--warning)';
-                errorEl.classList.remove('hidden');
-            } else {
+            if (result.success) {
+                // Login successful
                 this.showMainApp();
-                this.showToast('החשבון נוצר בהצלחה!', 'success');
+                this.showToast('התחברת בהצלחה!', 'success');
+            } else if (result.needsSetup) {
+                // GitHub not configured
+                setupInfoEl.classList.remove('hidden');
+            } else if (result.pending) {
+                // User pending approval
+                pendingInfoEl.classList.remove('hidden');
+                const pendingUserInfo = document.getElementById('pending-user-info');
+                if (pendingUserInfo) {
+                    const githubUser = await window.auth.authenticateWithGitHub();
+                    if (githubUser) {
+                        pendingUserInfo.innerHTML = `
+                            <p><strong>שם משתמש:</strong> ${githubUser.username}</p>
+                            <p><strong>שם מלא:</strong> ${githubUser.name}</p>
+                            <p><strong>אימייל:</strong> ${githubUser.email}</p>
+                        `;
+                    }
+                }
+            } else {
+                // Other error
+                errorEl.textContent = result.error;
+                errorEl.classList.remove('hidden');
             }
-        } else {
-            errorEl.textContent = result.error;
-            errorEl.style.color = 'var(--danger)';
+        } catch (error) {
+            console.error('Login error:', error);
+            errorEl.textContent = 'שגיאה בהתחברות. נסה שוב.';
             errorEl.classList.remove('hidden');
+        } finally {
+            githubLoginBtn.innerHTML = originalText;
+            githubLoginBtn.disabled = false;
         }
     }
 
@@ -493,39 +501,47 @@ class App {
         if (pendingUsers.length > 0) {
             html += '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255, 193, 7, 0.1); border-radius: 0.5rem; border: 1px solid rgba(255, 193, 7, 0.3);">';
             html += `<h3 style="margin: 0 0 1rem 0; color: var(--warning);">⏳ משתמשים ממתינים לאישור (${pendingUsers.length})</h3>`;
-            html += pendingUsers.map(user => `
+            html += pendingUsers.map(user => {
+                const userId = this.escapeHtml(user.username || user.uid);
+                const displayName = user.username ? `${user.username} (${user.email})` : user.email;
+                return `
                 <div class="user-item" style="background: rgba(255, 255, 255, 0.05); margin-bottom: 0.5rem; padding: 0.75rem; border-radius: 0.5rem;">
                     <div class="user-info">
-                        <span class="user-email-display">${this.escapeHtml(user.email)}</span>
+                        <span class="user-email-display">${this.escapeHtml(displayName)}</span>
                         <span class="user-role-badge" style="background: var(--warning);">ממתין</span>
                     </div>
                     <div style="display: flex; gap: 0.5rem;">
-                        <button class="btn btn-primary btn-sm approve-user-btn" data-user-id="${this.escapeHtml(user.uid)}">✓ אשר</button>
-                        <button class="btn btn-danger btn-sm reject-user-btn" data-user-id="${this.escapeHtml(user.uid)}">✗ דחה</button>
+                        <button class="btn btn-primary btn-sm approve-user-btn" data-user-id="${userId}">✓ אשר</button>
+                        <button class="btn btn-danger btn-sm reject-user-btn" data-user-id="${userId}">✗ דחה</button>
                     </div>
                 </div>
-
-            `).join('');
+                `;
+            }).join('');
             html += '</div>';
         }
 
         // Show approved users
         if (approvedUsers.length > 0) {
             html += `<h3 style="margin: 0 0 1rem 0;">✓ משתמשים מאושרים</h3>`;
-            html += approvedUsers.map(user => `
+            html += approvedUsers.map(user => {
+                const userId = this.escapeHtml(user.username || user.uid);
+                const displayName = user.username ? `${user.username} (${user.email})` : user.email;
+                const currentUserId = window.auth.getUser()?.username || window.auth.getUser()?.uid;
+                return `
                 <div class="user-item">
                     <div class="user-info">
-                        <span class="user-email-display">${this.escapeHtml(user.email)}</span>
+                        <span class="user-email-display">${this.escapeHtml(displayName)}</span>
                         <span class="user-role-badge">${user.role === 'admin' ? 'מנהל' : 'צופה'}</span>
                     </div>
-                    ${user.uid !== window.auth.getUser()?.uid ? `
-                    <select class="select-input user-role-select" style="width: auto;" data-user-id="${this.escapeHtml(user.uid)}">
+                    ${userId !== currentUserId ? `
+                    <select class="select-input user-role-select" style="width: auto;" data-user-id="${userId}">
                         <option value="viewer" ${user.role === 'viewer' ? 'selected' : ''}>צופה</option>
                         <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>מנהל</option>
                     </select>
                     ` : ''}
                 </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         usersList.innerHTML = html;

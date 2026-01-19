@@ -1,7 +1,7 @@
 // ===================================
 // מערכת ניהול אוטובוסים - אימות משתמשים
 // ===================================
-// אימות פשוט מבוסס localStorage
+// אימות דרך GitHub - בטוח לחלוטין!
 // ===================================
 
 class AuthService {
@@ -11,103 +11,108 @@ class AuthService {
         this.onAuthChangeCallback = null;
     }
 
-    // Initialize Auth
+    // Initialize Auth - check GitHub authentication
     async init() {
-        // Check for stored user session
-        const storedUser = localStorage.getItem(APP_CONFIG.localStoragePrefix + APP_CONFIG.keys.currentUser);
-        if (storedUser) {
+        // Check if GitHub is configured
+        if (window.githubStorage && window.githubStorage.isConfigured()) {
             try {
-                const userData = JSON.parse(storedUser);
-                this.currentUser = userData;
-                this.isAdmin = userData.role === 'admin';
+                // Authenticate with GitHub
+                const githubUser = await this.authenticateWithGitHub();
 
-                if (this.onAuthChangeCallback) {
-                    this.onAuthChangeCallback(this.currentUser, this.isAdmin);
+                if (githubUser) {
+                    await this.handleUserSignIn(githubUser);
+                    return true;
                 }
-            } catch (e) {
-                console.error('Error parsing stored user:', e);
+            } catch (error) {
+                console.error('GitHub authentication failed:', error);
             }
         }
 
+        // No GitHub auth - show login page
         return true;
     }
 
-    // Register new user
-    async register(email, password) {
-        const users = await window.storage.getUsers();
+    // Authenticate with GitHub using the configured token
+    async authenticateWithGitHub() {
+        try {
+            const response = await fetch('https://api.github.com/user', {
+                headers: {
+                    'Authorization': `Bearer ${window.githubStorage.token}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
 
-        // Check if email exists
-        if (users.some(u => u.email === email)) {
-            return { success: false, error: 'האימייל כבר קיים במערכת' };
-        }
-
-        // Validate password
-        if (password.length < 6) {
-            return { success: false, error: 'הסיסמה חייבת להכיל לפחות 6 תווים' };
-        }
-
-        // Create user
-        const isFirstUser = users.length === 0;
-        const role = isFirstUser ? 'admin' : 'viewer';
-        const user = {
-            uid: 'local_' + Date.now(),
-            email: email,
-            password: btoa(password), // Simple encoding (not secure, for demo only)
-            role: role,
-            approved: isFirstUser, // First user is auto-approved
-            createdAt: new Date().toISOString()
-        };
-
-        await window.storage.saveUser(user);
-
-        // Only set as current user if approved
-        if (user.approved) {
-            this.currentUser = { uid: user.uid, email: user.email, role: user.role };
-            this.isAdmin = user.role === 'admin';
-
-            localStorage.setItem(
-                APP_CONFIG.localStoragePrefix + APP_CONFIG.keys.currentUser,
-                JSON.stringify(this.currentUser)
-            );
-
-            if (this.onAuthChangeCallback) {
-                this.onAuthChangeCallback(this.currentUser, this.isAdmin);
+            if (!response.ok) {
+                throw new Error('GitHub authentication failed');
             }
 
-            return { success: true, user: this.currentUser };
-        } else {
-            // User needs approval
-            if (this.onAuthChangeCallback) {
-                this.onAuthChangeCallback(null, false, 'pending');
-            }
-            return { success: true, user: null, pending: true };
+            const user = await response.json();
+            return {
+                username: user.login,
+                email: user.email || `${user.login}@github.com`,
+                name: user.name || user.login,
+                avatar: user.avatar_url
+            };
+        } catch (error) {
+            console.error('Error authenticating with GitHub:', error);
+            return null;
         }
     }
 
-    // Login
-    async login(email, password) {
-        const users = await window.storage.getUsers();
-        const user = users.find(u => u.email === email);
+    // Handle user sign in
+    async handleUserSignIn(githubUser) {
+        // Check if user exists in our system
+        let userData = await window.storage.getUserByUsername(githubUser.username);
 
-        if (!user) {
-            return { success: false, error: 'משתמש לא נמצא' };
-        }
+        if (!userData) {
+            // New user - check if first user
+            const users = await window.storage.getUsers();
+            const isFirstUser = users.length === 0;
 
-        if (user.password !== btoa(password)) {
-            return { success: false, error: 'סיסמה שגויה' };
+            userData = {
+                username: githubUser.username,
+                email: githubUser.email,
+                name: githubUser.name,
+                avatar: githubUser.avatar,
+                role: isFirstUser ? 'admin' : 'viewer',
+                approved: isFirstUser,
+                createdAt: new Date().toISOString()
+            };
+
+            await window.storage.saveUser(userData);
+
+            // If not first user, show pending message
+            if (!isFirstUser) {
+                this.currentUser = null;
+                this.isAdmin = false;
+                if (this.onAuthChangeCallback) {
+                    this.onAuthChangeCallback(null, false, 'pending');
+                }
+                return;
+            }
         }
 
         // Check if user is approved
-        if (!user.approved) {
+        if (!userData.approved) {
+            this.currentUser = null;
+            this.isAdmin = false;
             if (this.onAuthChangeCallback) {
                 this.onAuthChangeCallback(null, false, 'pending');
             }
-            return { success: false, error: 'החשבון ממתין לאישור מנהל', pending: true };
+            return;
         }
 
-        this.currentUser = { uid: user.uid, email: user.email, role: user.role };
-        this.isAdmin = user.role === 'admin';
+        // User is authenticated and approved
+        this.currentUser = {
+            username: userData.username,
+            email: userData.email,
+            name: userData.name,
+            avatar: userData.avatar,
+            role: userData.role
+        };
+        this.isAdmin = userData.role === 'admin';
 
+        // Store in localStorage for UI
         localStorage.setItem(
             APP_CONFIG.localStoragePrefix + APP_CONFIG.keys.currentUser,
             JSON.stringify(this.currentUser)
@@ -116,8 +121,39 @@ class AuthService {
         if (this.onAuthChangeCallback) {
             this.onAuthChangeCallback(this.currentUser, this.isAdmin);
         }
+    }
 
-        return { success: true, user: this.currentUser };
+    // Login - redirect to GitHub setup if not configured
+    async login() {
+        if (!window.githubStorage || !window.githubStorage.isConfigured()) {
+            return {
+                success: false,
+                error: 'נא להגדיר את GitHub בעמוד ההגדרות',
+                needsSetup: true
+            };
+        }
+
+        // Try to authenticate
+        const githubUser = await this.authenticateWithGitHub();
+
+        if (githubUser) {
+            await this.handleUserSignIn(githubUser);
+
+            if (this.currentUser) {
+                return { success: true, user: this.currentUser };
+            } else {
+                return {
+                    success: false,
+                    error: 'החשבון ממתין לאישור מנהל',
+                    pending: true
+                };
+            }
+        }
+
+        return {
+            success: false,
+            error: 'אימות GitHub נכשל - בדוק את הטוקן'
+        };
     }
 
     // Logout
