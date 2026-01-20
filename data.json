@@ -1,4 +1,12 @@
 {
   "buses": [],
-  "students": []
+  "students": [
+    {
+      "firstName": "אלעד",
+      "lastName": "סבירו",
+      "address": "עתניאל",
+      "busId": "",
+      "id": "student_1768937131057"
+    }
+  ]
 }
