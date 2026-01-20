@@ -152,15 +152,28 @@ class MapsService {
             return null;
         }
 
+        // Clean address - remove any invalid UTF-8 characters or escape sequences
+        let cleanAddress = address;
+        try {
+            // Remove null bytes, control characters, and other invalid UTF-8
+            cleanAddress = address.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+            // Normalize unicode characters
+            cleanAddress = cleanAddress.normalize('NFC');
+            // Trim whitespace
+            cleanAddress = cleanAddress.trim();
+        } catch (e) {
+            console.warn('Failed to clean address:', e);
+        }
+
         // Check cache first
-        const cacheKey = address.toLowerCase().trim();
+        const cacheKey = cleanAddress.toLowerCase().trim();
         if (this.geocodeCache[cacheKey]) {
-            console.log(`Using cached geocode for: ${address}`);
+            console.log(`Using cached geocode for: ${cleanAddress}`);
             return this.geocodeCache[cacheKey];
         }
 
         return new Promise((resolve) => {
-            this.geocoder.geocode({ address: address + ', ישראל' }, (results, status) => {
+            this.geocoder.geocode({ address: cleanAddress + ', ישראל' }, (results, status) => {
                 if (status === 'OK' && results[0]) {
                     const result = {
                         lat: results[0].geometry.location.lat(),

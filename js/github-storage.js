@@ -121,6 +121,29 @@ class GitHubStorage {
         try {
             const url = `${this.apiUrl}/repos/${this.owner}/${this.repo}/contents/${path}`;
 
+            // Get current file SHA to avoid conflicts
+            let currentSHA = this.fileCache[path];
+
+            // If we don't have the SHA cached, fetch it
+            if (!currentSHA) {
+                try {
+                    const getResponse = await fetch(`${url}?ref=${this.branch}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    if (getResponse.ok) {
+                        const fileData = await getResponse.json();
+                        currentSHA = fileData.sha;
+                        this.fileCache[path] = currentSHA;
+                    }
+                } catch (e) {
+                    // File might not exist yet, that's ok
+                    console.log(`File ${path} doesn't exist yet, creating new file`);
+                }
+            }
+
             // Convert content to JSON and encode to base64
             const jsonContent = JSON.stringify(content, null, 2);
             const base64Content = btoa(unescape(encodeURIComponent(jsonContent)));
@@ -132,8 +155,8 @@ class GitHubStorage {
             };
 
             // If file exists, include its SHA
-            if (this.fileCache[path]) {
-                body.sha = this.fileCache[path];
+            if (currentSHA) {
+                body.sha = currentSHA;
             }
 
             const response = await fetch(url, {
@@ -148,6 +171,44 @@ class GitHubStorage {
 
             if (!response.ok) {
                 const error = await response.json();
+
+                // If SHA mismatch, try to fetch fresh SHA and retry once
+                if (error.message && error.message.includes('does not match')) {
+                    console.log(`SHA mismatch for ${path}, fetching fresh SHA and retrying...`);
+                    const getResponse = await fetch(`${url}?ref=${this.branch}`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    if (getResponse.ok) {
+                        const fileData = await getResponse.json();
+                        body.sha = fileData.sha;
+                        this.fileCache[path] = fileData.sha;
+
+                        // Retry the save
+                        const retryResponse = await fetch(url, {
+                            method: 'PUT',
+                            headers: {
+                                'Authorization': `Bearer ${this.token}`,
+                                'Accept': 'application/vnd.github.v3+json',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(body)
+                        });
+
+                        if (!retryResponse.ok) {
+                            const retryError = await retryResponse.json();
+                            throw new Error(`GitHub API error: ${retryError.message}`);
+                        }
+
+                        const retryData = await retryResponse.json();
+                        this.fileCache[path] = retryData.content.sha;
+                        console.log(`✅ Committed to GitHub: ${path} (retry succeeded)`);
+                        return retryData;
+                    }
+                }
+
                 throw new Error(`GitHub API error: ${error.message}`);
             }
 
