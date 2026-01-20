@@ -125,11 +125,7 @@
                                 <span>📊</span> ייבא מ-Excel
                             </button>
                             <button id="reassign-all-students-btn" class="btn btn-secondary admin-only">
-                                <span>🔄</span> שייך מחדש
-
-                            <button id="reassign-all-students-btn" class="btn btn-secondary admin-only">
                                 <span>🔄</span> שייך מחדש את כל התלמידים
-
                             </button>
                             <button id="add-student-btn" class="btn btn-primary admin-only">
                                 <span>+</span> הוסף תלמיד
@@ -420,15 +416,15 @@
             <!-- Confirm Modal -->
             <div id="confirm-modal" class="modal hidden">
                 <div class="modal-header">
-                    <h2>אישור מחיקה</h2>
+                    <h2 id="confirm-title">אישור פעולה</h2>
                     <button class="modal-close" data-close="confirm-modal">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <p id="confirm-message">האם אתה בטוח שברצונך למחוק?</p>
+                    <p id="confirm-message">האם אתה בטוח?</p>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" data-close="confirm-modal">ביטול</button>
-                    <button type="button" id="confirm-delete-btn" class="btn btn-danger">מחק</button>
+                    <button type="button" id="confirm-delete-btn" class="btn btn-primary">אישור</button>
                 </div>
             </div>
         </div>

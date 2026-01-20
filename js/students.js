@@ -231,7 +231,8 @@ class StudentManager {
             `האם אתה בטוח שברצונך למחוק את "${student.firstName} ${student.lastName}"?`,
             async () => {
                 await this.deleteStudent(studentId);
-            }
+            },
+            true  // This is a delete action
         );
     }
 

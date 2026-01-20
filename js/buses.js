@@ -253,7 +253,8 @@ class BusManager {
             `האם אתה בטוח שברצונך למחוק את "${bus.name}"?`,
             async () => {
                 await this.deleteBus(busId);
-            }
+            },
+            true  // This is a delete action
         );
     }
 
