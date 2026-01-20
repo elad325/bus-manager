@@ -102,8 +102,8 @@ class GitHubStorage {
             // Cache the SHA for later updates
             this.fileCache[path] = data.sha;
 
-            // Decode content from base64
-            const content = atob(data.content);
+            // Decode content from base64 (with proper UTF-8 support for Hebrew)
+            const content = decodeURIComponent(escape(atob(data.content)));
             return JSON.parse(content);
 
         } catch (error) {
