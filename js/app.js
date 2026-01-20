@@ -410,12 +410,31 @@ class App {
     }
 
     // Show confirm modal
-    showConfirmModal(message, onConfirm) {
+    showConfirmModal(message, onConfirm, isDanger = false) {
         const modal = document.getElementById('confirm-modal');
         const overlay = document.getElementById('modal-overlay');
         const messageEl = document.getElementById('confirm-message');
+        const titleEl = document.getElementById('confirm-title');
+        const confirmBtn = document.getElementById('confirm-delete-btn');
 
         if (messageEl) messageEl.textContent = message;
+
+        // Update modal appearance based on action type
+        if (isDanger) {
+            // Danger action (delete)
+            if (titleEl) titleEl.textContent = 'אישור מחיקה';
+            if (confirmBtn) {
+                confirmBtn.textContent = 'מחק';
+                confirmBtn.className = 'btn btn-danger';
+            }
+        } else {
+            // Regular confirmation
+            if (titleEl) titleEl.textContent = 'אישור פעולה';
+            if (confirmBtn) {
+                confirmBtn.textContent = 'אישור';
+                confirmBtn.className = 'btn btn-primary';
+            }
+        }
 
         this.pendingDeleteAction = onConfirm;
 
