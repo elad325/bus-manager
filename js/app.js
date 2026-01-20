@@ -365,12 +365,10 @@ class App {
         const totalBuses = document.getElementById('total-buses');
         const totalStudents = document.getElementById('total-students');
         const totalRoutes = document.getElementById('total-routes');
-        const totalUsers = document.getElementById('total-users');
 
         if (totalBuses) totalBuses.textContent = stats.totalBuses;
         if (totalStudents) totalStudents.textContent = stats.totalStudents;
         if (totalRoutes) totalRoutes.textContent = stats.totalRoutes;
-        if (totalUsers) totalUsers.textContent = stats.totalUsers;
 
         // Update recent items
         this.updateRecentItems();
