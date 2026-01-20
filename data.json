@@ -1,9 +1,9 @@
 {
   "buses": [
     {
-      "name": "ÃÂ§ÃÂ 1",
-      "startLocation": "ÃÂÃÂÃÂÃÂª",
-      "endLocation": "ÃÂÃÂÃÂ¨ÃÂÃÂ",
+      "name": "קו 1",
+      "startLocation": "אילת",
+      "endLocation": "מירון",
       "notes": "",
       "id": "bus_1768937274939"
     }
