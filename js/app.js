@@ -14,6 +14,7 @@ class App {
             // No authentication - direct access for everyone
             this.showMainApp();
             this.setupEventListeners();
+            await this.initializeModules(); // Load settings and initialize modules
             this.hideLoadingScreen();
             this.initialized = true;
 
