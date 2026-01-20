@@ -1,10 +1,18 @@
 {
-  "buses": [],
+  "buses": [
+    {
+      "name": "קו 1",
+      "startLocation": "אילת",
+      "endLocation": "מירון",
+      "notes": "",
+      "id": "bus_1768937274939"
+    }
+  ],
   "students": [
     {
-      "firstName": "אלעד",
-      "lastName": "סבירו",
-      "address": "עתניאל",
+      "firstName": "×××¢×",
+      "lastName": "×¡×××¨×",
+      "address": "×¢×ª× ×××",
       "busId": "",
       "id": "student_1768937131057"
     }
