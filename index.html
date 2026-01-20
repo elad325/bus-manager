@@ -24,46 +24,6 @@
             </div>
         </div>
 
-        <!-- Login Page -->
-        <div id="login-page" class="page hidden">
-            <div class="login-container">
-                <div class="login-card glass-card">
-                    <div class="login-header">
-                        <div class="logo">🚌</div>
-                        <h1>מערכת ניהול אוטובוסים</h1>
-                        <p>התחבר באמצעות GitHub</p>
-                    </div>
-                    <div class="login-form">
-                        <div class="github-login-info">
-                            <p>🔐 המערכת משתמשת ב-GitHub לאימות בטוח</p>
-                            <p>לא נשמרים סיסמאות - הכל דרך GitHub!</p>
-                        </div>
-
-                        <button type="button" id="github-login-btn" class="btn btn-primary btn-full">
-                            <span>🔑 התחבר עם GitHub</span>
-                        </button>
-
-                        <div id="github-setup-info" class="info-box hidden">
-                            <p>⚠️ נדרש להגדיר את GitHub תחילה</p>
-                            <button type="button" id="go-to-settings-btn" class="btn btn-secondary">
-                                📋 עבור להגדרות
-                            </button>
-                        </div>
-
-                        <div id="pending-approval-info" class="info-box hidden">
-                            <p>⏳ החשבון שלך ממתין לאישור מנהל</p>
-                            <p>פרטי המשתמש שלך:</p>
-                            <div id="pending-user-info"></div>
-                            <button type="button" id="logout-pending-btn" class="btn btn-secondary">
-                                יציאה
-                            </button>
-                        </div>
-                    </div>
-                    <div id="login-error" class="error-message hidden"></div>
-                </div>
-            </div>
-        </div>
-
         <!-- Main App -->
         <div id="main-app" class="hidden">
             <!-- Navbar -->
@@ -94,11 +54,7 @@
                         <span>הגדרות</span>
                     </a>
                 </div>
-                <div class="nav-user">
-                    <span id="user-email" class="user-email"></span>
-                    <span id="user-role" class="user-role"></span>
-                    <button id="logout-btn" class="btn btn-ghost">יציאה</button>
-                </div>
+                <!-- User info removed - open access for everyone -->
             </nav>
 
             <!-- Main Content -->
@@ -346,10 +302,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="settings-card glass-card">
-                            <h3>ניהול משתמשים</h3>
-                            <div id="users-list" class="users-list"></div>
-                        </div>
+                        <!-- User management removed - open access for everyone -->
                     </div>
                 </section>
             </main>

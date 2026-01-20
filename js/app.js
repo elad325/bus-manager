@@ -11,21 +11,8 @@ class App {
     // Initialize the application
     async init() {
         try {
-            // Initialize auth
-            await window.auth.init();
-
-            // Set up auth state listener
-            window.auth.onAuthChange((user, isAdmin) => {
-                this.handleAuthChange(user, isAdmin);
-            });
-
-            // Check if user is already logged in
-            if (window.auth.isLoggedIn()) {
-                this.showMainApp();
-            } else {
-                this.showLoginPage();
-            }
-
+            // No authentication - direct access for everyone
+            this.showMainApp();
             this.setupEventListeners();
             this.hideLoadingScreen();
             this.initialized = true;
@@ -33,38 +20,13 @@ class App {
         } catch (error) {
             console.error('Error initializing app:', error);
             this.hideLoadingScreen();
-            this.showLoginPage();
+            this.showMainApp();
         }
     }
 
     // Setup global event listeners
     setupEventListeners() {
-        // GitHub login button
-        const githubLoginBtn = document.getElementById('github-login-btn');
-        if (githubLoginBtn) {
-            githubLoginBtn.addEventListener('click', () => this.handleGitHubLogin());
-        }
-
-        // Go to settings button (from login page)
-        const goToSettingsBtn = document.getElementById('go-to-settings-btn');
-        if (goToSettingsBtn) {
-            goToSettingsBtn.addEventListener('click', () => {
-                this.showMainApp();
-                this.navigateTo('settings');
-            });
-        }
-
-        // Logout from pending approval
-        const logoutPendingBtn = document.getElementById('logout-pending-btn');
-        if (logoutPendingBtn) {
-            logoutPendingBtn.addEventListener('click', () => this.handleLogout());
-        }
-
-        // Logout button
-        const logoutBtn = document.getElementById('logout-btn');
-        if (logoutBtn) {
-            logoutBtn.addEventListener('click', () => this.handleLogout());
-        }
+        // No login/logout buttons - open access for everyone
 
         // Navigation links
         document.querySelectorAll('.nav-link').forEach(link => {
@@ -142,16 +104,7 @@ class App {
         });
     }
 
-    // Handle auth state change
-    async handleAuthChange(user, isAdmin) {
-        if (user) {
-            this.showMainApp();
-            this.updateUserUI(user, isAdmin);
-            await this.initializeModules();
-        } else {
-            this.showLoginPage();
-        }
-    }
+    // Authentication removed - direct access for everyone
 
     // Initialize sub-modules
     async initializeModules() {
@@ -187,32 +140,10 @@ class App {
         }
     }
 
-    // Show login page
-    showLoginPage() {
-        document.getElementById('login-page').classList.remove('hidden');
-        document.getElementById('main-app').classList.add('hidden');
-    }
-
     // Show main app
     showMainApp() {
-        document.getElementById('login-page').classList.add('hidden');
         document.getElementById('main-app').classList.remove('hidden');
         this.navigateTo('dashboard');
-    }
-
-    // Update user UI
-    updateUserUI(user, isAdmin) {
-        const emailEl = document.getElementById('user-email');
-        const roleEl = document.getElementById('user-role');
-
-        if (emailEl) emailEl.textContent = user.email;
-        if (roleEl) roleEl.textContent = isAdmin ? 'מנהל' : 'צופה';
-
-        // Show/hide admin-only elements
-        const adminElements = document.querySelectorAll('.admin-only');
-        adminElements.forEach(el => {
-            el.style.display = isAdmin ? '' : 'none';
-        });
     }
 
     // Navigate to page
@@ -240,68 +171,7 @@ class App {
         }
     }
 
-    // Handle GitHub login
-    async handleGitHubLogin() {
-        const errorEl = document.getElementById('login-error');
-        const setupInfoEl = document.getElementById('github-setup-info');
-        const pendingInfoEl = document.getElementById('pending-approval-info');
-        const githubLoginBtn = document.getElementById('github-login-btn');
-
-        // Hide all messages
-        errorEl.classList.add('hidden');
-        setupInfoEl.classList.add('hidden');
-        pendingInfoEl.classList.add('hidden');
-
-        // Change button text
-        const originalText = githubLoginBtn.innerHTML;
-        githubLoginBtn.innerHTML = '<span>⏳ מתחבר...</span>';
-        githubLoginBtn.disabled = true;
-
-        try {
-            const result = await window.auth.login();
-
-            if (result.success) {
-                // Login successful
-                this.showMainApp();
-                this.showToast('התחברת בהצלחה!', 'success');
-            } else if (result.needsSetup) {
-                // GitHub not configured
-                setupInfoEl.classList.remove('hidden');
-            } else if (result.pending) {
-                // User pending approval
-                pendingInfoEl.classList.remove('hidden');
-                const pendingUserInfo = document.getElementById('pending-user-info');
-                if (pendingUserInfo) {
-                    const githubUser = await window.auth.authenticateWithGitHub();
-                    if (githubUser) {
-                        pendingUserInfo.innerHTML = `
-                            <p><strong>שם משתמש:</strong> ${githubUser.username}</p>
-                            <p><strong>שם מלא:</strong> ${githubUser.name}</p>
-                            <p><strong>אימייל:</strong> ${githubUser.email}</p>
-                        `;
-                    }
-                }
-            } else {
-                // Other error
-                errorEl.textContent = result.error;
-                errorEl.classList.remove('hidden');
-            }
-        } catch (error) {
-            console.error('Login error:', error);
-            errorEl.textContent = 'שגיאה בהתחברות. נסה שוב.';
-            errorEl.classList.remove('hidden');
-        } finally {
-            githubLoginBtn.innerHTML = originalText;
-            githubLoginBtn.disabled = false;
-        }
-    }
-
-    // Handle logout
-    async handleLogout() {
-        await window.auth.logout();
-        this.showLoginPage();
-        this.showToast('התנתקת בהצלחה', 'success');
-    }
+    // Login/logout removed - open access for everyone
 
     // Handle API settings
     async handleApiSettings(e) {
@@ -475,130 +345,10 @@ class App {
             }
         }
 
-        // Load users list for admin
-        this.loadUsersList();
+        // User management removed - open access for everyone
     }
 
-    // Load users list
-    async loadUsersList() {
-        if (!window.auth.checkIsAdmin()) return;
-
-        const usersList = document.getElementById('users-list');
-        if (!usersList) return;
-
-        const users = await window.storage.getUsers();
-        const pendingUsers = users.filter(u => !u.approved);
-        const approvedUsers = users.filter(u => u.approved);
-
-        if (users.length === 0) {
-            usersList.innerHTML = '<p style="color: var(--text-muted);">אין משתמשים במערכת</p>';
-            return;
-        }
-
-        let html = '';
-
-        // Show pending users first
-        if (pendingUsers.length > 0) {
-            html += '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255, 193, 7, 0.1); border-radius: 0.5rem; border: 1px solid rgba(255, 193, 7, 0.3);">';
-            html += `<h3 style="margin: 0 0 1rem 0; color: var(--warning);">⏳ משתמשים ממתינים לאישור (${pendingUsers.length})</h3>`;
-            html += pendingUsers.map(user => {
-                const userId = this.escapeHtml(user.username || user.uid);
-                const displayName = user.username ? `${user.username} (${user.email})` : user.email;
-                return `
-                <div class="user-item" style="background: rgba(255, 255, 255, 0.05); margin-bottom: 0.5rem; padding: 0.75rem; border-radius: 0.5rem;">
-                    <div class="user-info">
-                        <span class="user-email-display">${this.escapeHtml(displayName)}</span>
-                        <span class="user-role-badge" style="background: var(--warning);">ממתין</span>
-                    </div>
-                    <div style="display: flex; gap: 0.5rem;">
-                        <button class="btn btn-primary btn-sm approve-user-btn" data-user-id="${userId}">✓ אשר</button>
-                        <button class="btn btn-danger btn-sm reject-user-btn" data-user-id="${userId}">✗ דחה</button>
-                    </div>
-                </div>
-                `;
-            }).join('');
-            html += '</div>';
-        }
-
-        // Show approved users
-        if (approvedUsers.length > 0) {
-            html += `<h3 style="margin: 0 0 1rem 0;">✓ משתמשים מאושרים</h3>`;
-            html += approvedUsers.map(user => {
-                const userId = this.escapeHtml(user.username || user.uid);
-                const displayName = user.username ? `${user.username} (${user.email})` : user.email;
-                const currentUserId = window.auth.getUser()?.username || window.auth.getUser()?.uid;
-                return `
-                <div class="user-item">
-                    <div class="user-info">
-                        <span class="user-email-display">${this.escapeHtml(displayName)}</span>
-                        <span class="user-role-badge">${user.role === 'admin' ? 'מנהל' : 'צופה'}</span>
-                    </div>
-                    ${userId !== currentUserId ? `
-                    <select class="select-input user-role-select" style="width: auto;" data-user-id="${userId}">
-                        <option value="viewer" ${user.role === 'viewer' ? 'selected' : ''}>צופה</option>
-                        <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>מנהל</option>
-                    </select>
-                    ` : ''}
-                </div>
-                `;
-            }).join('');
-        }
-
-        usersList.innerHTML = html;
-
-        // Add event listeners to role selects (safer than inline onchange)
-
-        usersList.querySelectorAll('.user-role-select').forEach(select => {
-            select.addEventListener('change', (e) => {
-                const uid = e.target.getAttribute('data-user-id');
-                this.updateUserRole(uid, e.target.value);
-            });
-        });
-
-
-        // Add event listeners to approve buttons
-        usersList.querySelectorAll('.approve-user-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const uid = e.target.getAttribute('data-user-id');
-                this.approveUser(uid);
-            });
-        });
-
-        // Add event listeners to reject buttons
-        usersList.querySelectorAll('.reject-user-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const uid = e.target.getAttribute('data-user-id');
-                this.rejectUser(uid);
-            });
-        });
-
-
-    }
-
-    // Update user role
-    async updateUserRole(uid, role) {
-        await window.storage.updateUserRole(uid, role);
-        this.showToast('הרשאות המשתמש עודכנו', 'success');
-    }
-
-    // Approve user
-    async approveUser(uid) {
-        await window.storage.approveUser(uid);
-        this.showToast('המשתמש אושר בהצלחה', 'success');
-        this.loadUsersList(); // Reload users list
-    }
-
-    // Reject user
-    async rejectUser(uid) {
-        this.showConfirmModal(
-            'האם אתה בטוח שברצונך לדחות משתמש זה?',
-            async () => {
-                await window.storage.rejectUser(uid);
-                this.showToast('המשתמש נדחה', 'success');
-                this.loadUsersList(); // Reload users list
-            }
-        );
-    }
+    // User management functions removed - open access for everyone
 
     // Update dashboard stats
     async updateDashboardStats() {
