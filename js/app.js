@@ -14,6 +14,7 @@ class App {
             // No authentication - direct access for everyone
             this.showMainApp();
             this.setupEventListeners();
+            await this.initializeModules(); // Load settings and initialize modules
             this.hideLoadingScreen();
             this.initialized = true;
 
@@ -168,6 +169,8 @@ class App {
         // Page-specific actions
         if (page === 'dashboard') {
             this.updateDashboardStats();
+        } else if (page === 'settings') {
+            this.loadSettingsValues();
         }
     }
 
@@ -197,8 +200,11 @@ class App {
         const token = document.getElementById('github-token').value.trim();
         const branch = document.getElementById('github-branch').value.trim() || 'main';
 
+        console.log('GitHub Settings:', { owner, repo, hasToken: !!token, branch });
+
         if (!owner || !repo || !token) {
             this.showToast('יש למלא את כל השדות', 'warning');
+            console.error('Missing fields:', { owner: !owner, repo: !repo, token: !token });
             return;
         }
 
@@ -321,9 +327,11 @@ class App {
 
         // Auto-detect from URL
         const detected = GitHubStorage.autoDetectRepo();
+        console.log('Auto-detected GitHub repo:', detected);
         if (detected.detected) {
             if (githubOwnerInput) githubOwnerInput.value = detected.owner;
             if (githubRepoInput) githubRepoInput.value = detected.repo;
+            console.log('Set owner/repo fields:', detected.owner, detected.repo);
         }
 
         // Load existing config
