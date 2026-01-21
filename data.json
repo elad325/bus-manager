@@ -1,5 +1,13 @@
 {
-  "buses": [],
+  "buses": [
+    {
+      "name": "קו 1",
+      "startLocation": "קרית שמונה",
+      "endLocation": "עכו",
+      "notes": "",
+      "id": "bus_1768972866583"
+    }
+  ],
   "students": [
     {
       "firstName": "אלעד",
