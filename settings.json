@@ -11,5 +11,10 @@
   "githubToken": "JR0DEhQbWVRTJAdHfl98AiwTSlNBPFABTx9QXQlhajsEJX4wHjMFDw==",
   "githubOwner": "elad325",
   "githubRepo": "bus-manager",
-  "githubBranch": "main"
+  "githubBranch": "main",
+  "googleSheetsConfig": {
+    "clientId": "217707323119-hc2lamrqgn539938tmcjrubh60m2je97.apps.googleusercontent.com",
+    "apiKey": "AIzaSyDZPSH_1pt9esoJ0oBgoE3BreLWpMmUBfU",
+    "spreadsheetId": "1_1tLXQkCrgVWgSkxDTJqqzCvx5baLKhjRSoamKviqN8"
+  }
 }
