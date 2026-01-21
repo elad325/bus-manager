@@ -6,6 +6,13 @@
       "endLocation": "מירון",
       "notes": "",
       "id": "bus_1768937274939"
+    },
+    {
+      "name": "קו 2",
+      "startLocation": "עכו",
+      "endLocation": "ירושלים",
+      "notes": "",
+      "id": "bus_1768968970563"
     }
   ],
   "students": [
