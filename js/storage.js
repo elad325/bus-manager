@@ -387,25 +387,37 @@ class StorageService {
         return data ? JSON.parse(data) : {};
     }
 
-    async saveSettings(settings) {
+    async saveSettings(newSettings) {
         try {
             if (this.isGitHubConfigured()) {
+                // Get current settings and merge with new ones
+                const currentSettings = await this.getSettings() || {};
+                const mergedSettings = { ...currentSettings, ...newSettings };
+
                 await window.githubStorage.saveFile(
                     this.FILES.settings,
-                    settings,
+                    mergedSettings,
                     'Update settings'
                 );
 
                 // Also save to localStorage as backup
-                localStorage.setItem(this.prefix + APP_CONFIG.keys.settings, JSON.stringify(settings));
+                localStorage.setItem(this.prefix + APP_CONFIG.keys.settings, JSON.stringify(mergedSettings));
                 return true;
             }
         } catch (error) {
             console.error('Error saving settings to GitHub:', error);
         }
 
-        localStorage.setItem(this.prefix + APP_CONFIG.keys.settings, JSON.stringify(settings));
+        // Fallback to localStorage - also merge settings
+        const currentSettings = this.getLocalSettings();
+        const mergedSettings = { ...currentSettings, ...newSettings };
+        localStorage.setItem(this.prefix + APP_CONFIG.keys.settings, JSON.stringify(mergedSettings));
         return true;
+    }
+
+    getLocalSettings() {
+        const data = localStorage.getItem(this.prefix + APP_CONFIG.keys.settings);
+        return data ? JSON.parse(data) : {};
     }
 
     // ===== STATS =====

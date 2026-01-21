@@ -113,13 +113,14 @@ class App {
         await window.studentManager.init();
         await window.routeManager.init();
 
-        // Try to initialize maps if key is available
-        if (getGoogleMapsKey()) {
+        // Try to initialize maps if key is available (now async)
+        const apiKey = await getGoogleMapsKey();
+        if (apiKey) {
             await window.mapsService.init();
         }
 
         this.updateDashboardStats();
-        this.loadSettingsValues();
+        await this.loadSettingsValues();
     }
 
     // Show loading screen
@@ -170,7 +171,10 @@ class App {
         if (page === 'dashboard') {
             this.updateDashboardStats();
         } else if (page === 'settings') {
-            this.loadSettingsValues();
+            // Load settings asynchronously
+            this.loadSettingsValues().catch(err => {
+                console.error('Error loading settings:', err);
+            });
         }
     }
 
@@ -181,14 +185,14 @@ class App {
         e.preventDefault();
 
         const apiKey = document.getElementById('google-api-key').value.trim();
-        saveGoogleMapsKey(apiKey);
+        await saveGoogleMapsKey(apiKey);
 
         // Reinitialize maps
         if (apiKey) {
             await window.mapsService.init();
         }
 
-        this.showToast('הגדרות API נשמרו בהצלחה', 'success');
+        this.showToast('הגדרות API נשמרו בהצלחה ב-GitHub!', 'success');
     }
 
     // Handle GitHub settings
@@ -258,7 +262,9 @@ class App {
             spreadsheetId: document.getElementById('sheets-spreadsheet-id').value.trim()
         };
 
+        // Save to both localStorage and GitHub
         window.sheetsStorage.saveConfig(config);
+        await saveGoogleSheetsConfig(config);
 
         // Update status indicator
         const statusDot = document.querySelector('#sheets-status .status-dot');
@@ -289,15 +295,16 @@ class App {
     }
 
     // Load settings values
-    loadSettingsValues() {
-        // Google API Key
+    async loadSettingsValues() {
+        // Google API Key (now async)
         const googleKeyInput = document.getElementById('google-api-key');
         if (googleKeyInput) {
-            googleKeyInput.value = getGoogleMapsKey();
+            const apiKey = await getGoogleMapsKey();
+            googleKeyInput.value = apiKey;
         }
 
-        // Google Sheets config
-        const sheetsConfig = window.sheetsStorage.getConfig();
+        // Google Sheets config (now async)
+        const sheetsConfig = await getGoogleSheetsConfig() || window.sheetsStorage.getConfig();
         const sheetsClientId = document.getElementById('sheets-client-id');
         const sheetsApiKey = document.getElementById('sheets-api-key');
         const sheetsSpreadsheetId = document.getElementById('sheets-spreadsheet-id');
