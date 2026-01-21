@@ -6,6 +6,13 @@
       "endLocation": "עכו",
       "notes": "",
       "id": "bus_1768972866583"
+    },
+    {
+      "name": "קו 2",
+      "startLocation": "תל אביב",
+      "endLocation": "מצפה רמון",
+      "notes": "",
+      "id": "bus_1768972892881"
     }
   ],
   "students": [
