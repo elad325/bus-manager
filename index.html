@@ -243,8 +243,14 @@
                                             צור טוקן חדש ב-GitHub
                                         </a> (הרשאות: repo)
                                     </small>
+                                    <div class="info-box" style="margin-top: 10px; background: #fff3cd; border-left: 3px solid #ffc107; padding: 10px; border-radius: 4px;">
+                                        ⚠️ <strong>שים לב:</strong> הטוקן נשמר בצורה מוצפנת ב-GitHub (settings.json), אך ההצפנה היא פשוטה ולא בטוחה לגמרי. מי שיש לו גישה לקוד יכול לפענח אותה.
+                                    </div>
                                 </div>
-                                <button type="submit" class="btn btn-primary">בדוק והגדר</button>
+                                <div style="display: flex; gap: 10px;">
+                                    <button type="submit" class="btn btn-primary" style="flex: 1;">בדוק והגדר</button>
+                                    <button type="button" id="restore-github-token-btn" class="btn btn-secondary" style="flex: 1;">שחזר טוקן מ-GitHub</button>
+                                </div>
                             </form>
                             <div id="github-status" class="status-indicator" style="margin-top: 1rem; display: none;">
                                 <span class="status-dot"></span>

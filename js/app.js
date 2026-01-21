@@ -50,6 +50,12 @@ class App {
             githubSettingsForm.addEventListener('submit', (e) => this.handleGitHubSettings(e));
         }
 
+        // Restore GitHub token button
+        const restoreTokenBtn = document.getElementById('restore-github-token-btn');
+        if (restoreTokenBtn) {
+            restoreTokenBtn.addEventListener('click', () => this.handleRestoreGitHubToken());
+        }
+
         // Google Sheets settings
         const sheetsSettingsForm = document.getElementById('sheets-settings-form');
         if (sheetsSettingsForm) {
@@ -212,8 +218,8 @@ class App {
             return;
         }
 
-        // Save config
-        window.githubStorage.saveConfig(owner, repo, token, branch);
+        // Save config (now saves to GitHub encrypted)
+        await window.githubStorage.saveConfig(owner, repo, token, branch);
 
         // Test connection
         this.updateGitHubStatus(false, 'בודק חיבור...');
@@ -249,6 +255,41 @@ class App {
 
         if (statusText) {
             statusText.textContent = message;
+        }
+    }
+
+    // Handle restore GitHub token from settings.json
+    async handleRestoreGitHubToken() {
+        // Prompt user for temporary token to access GitHub
+        const temporaryToken = prompt(
+            'הזן טוקן זמני כדי לטעון את הטוקן השמור מ-GitHub:\n\n' +
+            '(אפשר להשתמש באותו טוקן או ליצור טוקן חדש זמני)\n' +
+            'הטוקן הזמני ישמש רק כדי לגשת ל-settings.json'
+        );
+
+        if (!temporaryToken || !temporaryToken.trim()) {
+            this.showToast('פעולה בוטלה', 'info');
+            return;
+        }
+
+        try {
+            this.showToast('מנסה לשחזר טוקן מ-GitHub...', 'info');
+
+            const result = await window.githubStorage.restoreTokenFromGitHub(temporaryToken.trim());
+
+            if (result.success) {
+                this.showToast('✅ הטוקן שוחזר בהצלחה מ-GitHub!', 'success');
+
+                // Reload the page to apply new config
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                this.showToast(`שגיאה: ${result.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error restoring token:', error);
+            this.showToast('שגיאה בשחזור הטוקן', 'error');
         }
     }
 

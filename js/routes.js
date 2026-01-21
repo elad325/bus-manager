@@ -60,7 +60,7 @@ class RouteManager {
 
         // Check if Google Maps is configured
         if (!window.mapsService.isReady()) {
-            const apiKey = getGoogleMapsKey();
+            const apiKey = await getGoogleMapsKey();
             if (!apiKey) {
                 window.app.showToast('יש להגדיר Google Maps API Key בהגדרות', 'error');
                 return;
