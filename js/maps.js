@@ -15,7 +15,7 @@ class MapsService {
 
     // Initialize Google Maps
     async init() {
-        this.apiKey = getGoogleMapsKey();
+        this.apiKey = await getGoogleMapsKey();
 
         if (!this.apiKey) {
             console.log('Google Maps API Key not configured');
