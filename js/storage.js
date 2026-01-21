@@ -8,7 +8,6 @@ class StorageService {
     constructor() {
         this.prefix = APP_CONFIG.localStoragePrefix;
         this.FILES = {
-            users: 'users.json',
             data: 'data.json',
             settings: 'settings.json'
         };
@@ -206,171 +205,6 @@ class StorageService {
         return true;
     }
 
-    // ===== USERS =====
-
-    async getUsers() {
-        try {
-            if (this.isGitHubConfigured()) {
-                const data = await window.githubStorage.getFile(this.FILES.users);
-                return data ? (data.users || []) : [];
-            }
-        } catch (error) {
-            console.error('Error getting users from GitHub:', error);
-        }
-        return this.getLocalUsers();
-    }
-
-    getLocalUsers() {
-        const data = localStorage.getItem(this.prefix + APP_CONFIG.keys.users);
-        return data ? JSON.parse(data) : [];
-    }
-
-    async saveUser(user) {
-        try {
-            if (this.isGitHubConfigured()) {
-                let data = await window.githubStorage.getFile(this.FILES.users) || { users: [] };
-                const users = data.users || [];
-
-                // Support both username (GitHub OAuth) and uid (legacy)
-                const identifier = user.username || user.uid;
-                const index = users.findIndex(u =>
-                    (user.username && u.username === user.username) ||
-                    (user.uid && u.uid === user.uid)
-                );
-
-                if (index >= 0) {
-                    users[index] = user;
-                } else {
-                    users.push(user);
-                }
-
-                data.users = users;
-
-                await window.githubStorage.saveFile(
-                    this.FILES.users,
-                    data,
-                    `Update user: ${user.username || user.email || identifier}`
-                );
-
-                return user;
-            }
-        } catch (error) {
-            console.error('Error saving user to GitHub:', error);
-        }
-        return this.saveLocalUser(user);
-    }
-
-    saveLocalUser(user) {
-        const users = this.getLocalUsers();
-        // Support both username (GitHub OAuth) and uid (legacy)
-        const index = users.findIndex(u =>
-            (user.username && u.username === user.username) ||
-            (user.uid && u.uid === user.uid)
-        );
-        if (index >= 0) {
-            users[index] = user;
-        } else {
-            users.push(user);
-        }
-        localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
-        return user;
-    }
-
-    async getUserByUid(uid) {
-        const users = await this.getUsers();
-        return users.find(u => u.uid === uid) || null;
-    }
-
-    async getUserByUsername(username) {
-        const users = await this.getUsers();
-        return users.find(u => u.username === username) || null;
-    }
-
-    async updateUserRole(identifier, role) {
-        try {
-            if (this.isGitHubConfigured()) {
-                const data = await window.githubStorage.getFile(this.FILES.users) || { users: [] };
-                // Support both username and uid
-                const user = (data.users || []).find(u => u.username === identifier || u.uid === identifier);
-                if (user) {
-                    user.role = role;
-                    await window.githubStorage.saveFile(
-                        this.FILES.users,
-                        data,
-                        `Update user role: ${identifier}`
-                    );
-                }
-                return true;
-            }
-        } catch (error) {
-            console.error('Error updating user role:', error);
-        }
-
-        const users = this.getLocalUsers();
-        const user = users.find(u => u.username === identifier || u.uid === identifier);
-        if (user) {
-            user.role = role;
-            localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
-        }
-        return true;
-    }
-
-    async approveUser(identifier) {
-        try {
-            if (this.isGitHubConfigured()) {
-                const data = await window.githubStorage.getFile(this.FILES.users) || { users: [] };
-                // Support both username and uid
-                const user = (data.users || []).find(u => u.username === identifier || u.uid === identifier);
-                if (user) {
-                    user.approved = true;
-                    await window.githubStorage.saveFile(
-                        this.FILES.users,
-                        data,
-                        `Approve user: ${identifier}`
-                    );
-                }
-                return true;
-            }
-        } catch (error) {
-            console.error('Error approving user:', error);
-        }
-
-        const users = this.getLocalUsers();
-        const user = users.find(u => u.username === identifier || u.uid === identifier);
-        if (user) {
-            user.approved = true;
-            localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
-        }
-        return true;
-    }
-
-    async rejectUser(identifier) {
-        try {
-            if (this.isGitHubConfigured()) {
-                const data = await window.githubStorage.getFile(this.FILES.users) || { users: [] };
-                // Support both username and uid
-                data.users = (data.users || []).filter(u => u.username !== identifier && u.uid !== identifier);
-                await window.githubStorage.saveFile(
-                    this.FILES.users,
-                    data,
-                    `Reject user: ${identifier}`
-                );
-                return true;
-            }
-        } catch (error) {
-            console.error('Error rejecting user:', error);
-        }
-
-        const users = this.getLocalUsers().filter(u => u.username !== identifier && u.uid !== identifier);
-        localStorage.setItem(this.prefix + APP_CONFIG.keys.users, JSON.stringify(users));
-        return true;
-    }
-
-    async getPendingUsers() {
-        const users = await this.getUsers();
-        return users.filter(u => !u.approved);
-    }
-
     // ===== SETTINGS =====
 
     async getSettings() {
@@ -425,13 +259,11 @@ class StorageService {
     async getStats() {
         const buses = await this.getBuses();
         const students = await this.getStudents();
-        const users = await this.getUsers();
 
         return {
             totalBuses: buses.length,
             totalStudents: students.length,
-            totalRoutes: buses.filter(b => b.startLocation && b.endLocation).length,
-            totalUsers: users.length
+            totalRoutes: buses.filter(b => b.startLocation && b.endLocation).length
         };
     }
 }
