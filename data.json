@@ -15,6 +15,13 @@
       "address": "עתניאל",
       "busId": "bus_1768937274939",
       "id": "student_1768937131057"
+    },
+    {
+      "firstName": "יוסף",
+      "lastName": "סבירו",
+      "address": "מירון",
+      "busId": "bus_1768937274939",
+      "id": "student_1768968940330"
     }
   ]
 }
