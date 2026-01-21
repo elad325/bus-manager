@@ -15,7 +15,39 @@ class GitHubStorage {
         // Cache for file SHAs (needed for updates)
         this.fileCache = {};
 
+        // Encryption key (simple obfuscation - NOT truly secure!)
+        this.encryptionKey = 'BusManager2024-SecretKey-' + 'v1.0.0';
+
         this.loadConfig();
+    }
+
+    // Simple encryption (XOR cipher - NOT secure, just obfuscation)
+    encrypt(text) {
+        if (!text) return '';
+        const key = this.encryptionKey;
+        let encrypted = '';
+        for (let i = 0; i < text.length; i++) {
+            encrypted += String.fromCharCode(text.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+        }
+        // Encode to base64 to make it URL-safe
+        return btoa(encrypted);
+    }
+
+    // Simple decryption
+    decrypt(encryptedText) {
+        if (!encryptedText) return '';
+        try {
+            const encrypted = atob(encryptedText);
+            const key = this.encryptionKey;
+            let decrypted = '';
+            for (let i = 0; i < encrypted.length; i++) {
+                decrypted += String.fromCharCode(encrypted.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+            }
+            return decrypted;
+        } catch (e) {
+            console.error('Decryption failed:', e);
+            return '';
+        }
     }
 
     // Load GitHub config from localStorage
@@ -35,14 +67,80 @@ class GitHubStorage {
         }
     }
 
-    // Save GitHub config to localStorage
-    saveConfig(owner, repo, token, branch = 'main') {
+    // Save GitHub config to localStorage and GitHub
+    async saveConfig(owner, repo, token, branch = 'main') {
         const config = { owner, repo, token, branch };
         localStorage.setItem('github_config', JSON.stringify(config));
         this.owner = owner;
         this.repo = repo;
         this.token = token;
         this.branch = branch;
+
+        // Also backup encrypted token to GitHub (after setting it locally)
+        await this.backupTokenToGitHub();
+    }
+
+    // Backup encrypted token to GitHub settings
+    async backupTokenToGitHub() {
+        if (!this.isConfigured()) {
+            console.log('GitHub not configured, skipping backup');
+            return;
+        }
+
+        try {
+            // Get current settings
+            let settings = {};
+            try {
+                settings = await window.storage.getSettings() || {};
+            } catch (e) {
+                console.log('No existing settings, creating new');
+            }
+
+            // Encrypt and save token
+            const encryptedToken = this.encrypt(this.token);
+            settings.githubToken = encryptedToken;
+            settings.githubOwner = this.owner;
+            settings.githubRepo = this.repo;
+            settings.githubBranch = this.branch;
+
+            await window.storage.saveSettings(settings);
+            console.log('✅ GitHub token backed up to settings.json (encrypted)');
+        } catch (error) {
+            console.error('Failed to backup token to GitHub:', error);
+            // Don't throw - backup is optional
+        }
+    }
+
+    // Restore token from GitHub settings
+    async restoreTokenFromGitHub(temporaryToken) {
+        try {
+            // Temporarily set token to fetch settings
+            const originalToken = this.token;
+            this.token = temporaryToken;
+
+            const settings = await window.storage.getSettings();
+
+            if (settings && settings.githubToken) {
+                const decryptedToken = this.decrypt(settings.githubToken);
+                const owner = settings.githubOwner;
+                const repo = settings.githubRepo;
+                const branch = settings.githubBranch || 'main';
+
+                if (decryptedToken && owner && repo) {
+                    // Save to localStorage
+                    await this.saveConfig(owner, repo, decryptedToken, branch);
+                    console.log('✅ Token restored from GitHub successfully');
+                    return { success: true };
+                } else {
+                    throw new Error('Invalid or missing GitHub config in settings');
+                }
+            } else {
+                throw new Error('No GitHub token found in settings.json');
+            }
+        } catch (error) {
+            console.error('Failed to restore token from GitHub:', error);
+            return { success: false, error: error.message };
+        }
     }
 
     // Check if GitHub is configured
