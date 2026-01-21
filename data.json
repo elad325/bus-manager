@@ -1,13 +1,6 @@
 {
   "buses": [
     {
-      "name": "קו 1",
-      "startLocation": "אשדוד",
-      "endLocation": "באר שבע",
-      "notes": "בדיקה",
-      "id": "bus_1768937274939"
-    },
-    {
       "name": "קו 2",
       "startLocation": "עכו",
       "endLocation": "ירושלים",
