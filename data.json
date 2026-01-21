@@ -2,8 +2,8 @@
   "buses": [
     {
       "name": "קו 1",
-      "startLocation": "אילת",
-      "endLocation": "מירון",
+      "startLocation": "אשדוד",
+      "endLocation": "באר שבע",
       "notes": "",
       "id": "bus_1768937274939"
     },
