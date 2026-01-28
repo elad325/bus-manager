@@ -582,6 +582,13 @@
       "address": "נוב",
       "busId": "",
       "id": "student_1769617414413"
+    },
+    {
+      "firstName": "אהרון",
+      "lastName": "שטייגמן",
+      "address": "קצרין",
+      "busId": "",
+      "id": "student_1769617415877"
     }
   ]
 }
