@@ -379,6 +379,13 @@
       "address": "דולב",
       "busId": "",
       "id": "student_1769617373598"
+    },
+    {
+      "firstName": "יוסף שילה",
+      "lastName": "מאמן",
+      "address": "טירת כרמל",
+      "busId": "",
+      "id": "student_1769617375382"
     }
   ]
 }
