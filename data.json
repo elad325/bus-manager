@@ -449,6 +449,13 @@
       "address": "ירושלים",
       "busId": "",
       "id": "student_1769617388655"
+    },
+    {
+      "firstName": "אליאב",
+      "lastName": "סמן טוב",
+      "address": "גבעת אבני",
+      "busId": "",
+      "id": "student_1769617389992"
     }
   ]
 }
