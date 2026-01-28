@@ -244,12 +244,47 @@ class MapsService {
         }
 
         return new Promise((resolve) => {
-            this.geocoder.geocode({ address: cleanAddress + ', ישראל' }, (results, status) => {
+            // Try with "יישוב" prefix for better matching of Israeli settlements
+            const searchAddress = cleanAddress + ', ישראל';
+
+            this.geocoder.geocode({ address: searchAddress }, (results, status) => {
                 if (status === 'OK' && results[0]) {
+                    const formattedAddress = results[0].formatted_address;
+
+                    // Check if geocoding returned a valid result
+                    // If formattedAddress is just "ישראל" or doesn't contain useful location info,
+                    // the geocoding failed silently
+                    if (formattedAddress === 'ישראל' || formattedAddress === 'Israel') {
+                        console.warn(`Geocode returned generic "Israel" for "${cleanAddress}" - trying with region bias`);
+
+                        // Try again with more specific query
+                        this.geocoder.geocode({
+                            address: 'יישוב ' + cleanAddress + ', ישראל',
+                            region: 'IL'
+                        }, (results2, status2) => {
+                            if (status2 === 'OK' && results2[0] &&
+                                results2[0].formatted_address !== 'ישראל' &&
+                                results2[0].formatted_address !== 'Israel') {
+                                const result = {
+                                    lat: results2[0].geometry.location.lat(),
+                                    lng: results2[0].geometry.location.lng(),
+                                    formattedAddress: results2[0].formatted_address
+                                };
+                                console.log(`Geocoded (retry) "${cleanAddress}" -> ${result.lat}, ${result.lng} (${result.formattedAddress})`);
+                                this.geocodeCache[cacheKey] = result;
+                                resolve(result);
+                            } else {
+                                console.error(`Geocode failed for "${cleanAddress}": could not find location`);
+                                resolve(null);
+                            }
+                        });
+                        return;
+                    }
+
                     const result = {
                         lat: results[0].geometry.location.lat(),
                         lng: results[0].geometry.location.lng(),
-                        formattedAddress: results[0].formatted_address
+                        formattedAddress: formattedAddress
                     };
                     console.log(`Geocoded "${cleanAddress}" -> ${result.lat}, ${result.lng} (${result.formattedAddress})`);
                     // Save to cache
