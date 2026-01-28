@@ -11,6 +11,8 @@ class MapsService {
         this.directionsRenderer = null;
         this.geocoder = null;
         this.geocodeCache = {}; // Cache for geocoding results
+        this.markers = []; // Store markers for cleanup
+        this.additionalRenderers = []; // Store additional DirectionsRenderers for chunked routes
     }
 
     // Initialize Google Maps
@@ -94,6 +96,75 @@ class MapsService {
         });
 
         return this.map;
+    }
+
+    // Clear all markers and route renderers from map
+    clearMapDisplay() {
+        // Clear markers
+        this.markers.forEach(marker => marker.setMap(null));
+        this.markers = [];
+
+        // Clear additional renderers
+        this.additionalRenderers.forEach(renderer => {
+            renderer.setMap(null);
+        });
+        this.additionalRenderers = [];
+
+        // Reset main renderer options (don't try to clear directions as it can cause errors)
+        if (this.directionsRenderer) {
+            this.directionsRenderer.setOptions({
+                suppressMarkers: false,
+                polylineOptions: {
+                    strokeColor: '#6366f1',
+                    strokeWeight: 5
+                }
+            });
+        }
+    }
+
+    // Add a marker to the map
+    addMarker(location, label, title, color = '#6366f1') {
+        if (!this.map) return null;
+
+        const marker = new google.maps.Marker({
+            position: location,
+            map: this.map,
+            label: {
+                text: label,
+                color: 'white',
+                fontWeight: 'bold'
+            },
+            title: title,
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 12,
+                fillColor: color,
+                fillOpacity: 1,
+                strokeColor: 'white',
+                strokeWeight: 2
+            }
+        });
+
+        this.markers.push(marker);
+        return marker;
+    }
+
+    // Create a new DirectionsRenderer for additional routes
+    createAdditionalRenderer(color = '#10b981') {
+        if (!this.map) return null;
+
+        const renderer = new google.maps.DirectionsRenderer({
+            map: this.map,
+            suppressMarkers: true, // We'll add our own markers
+            polylineOptions: {
+                strokeColor: color,
+                strokeWeight: 4,
+                strokeOpacity: 0.8
+            }
+        });
+
+        this.additionalRenderers.push(renderer);
+        return renderer;
     }
 
     // Get dark mode map styles
@@ -239,6 +310,9 @@ class MapsService {
 
     // Calculate route for a single chunk (up to 25 waypoints)
     async calculateSingleRoute(origin, destination, originCoords, destCoords, waypointCoords) {
+        // Clear previous display
+        this.clearMapDisplay();
+
         const waypointsForGoogle = waypointCoords.map(wp => ({
             location: new google.maps.LatLng(wp.location.lat, wp.location.lng),
             stopover: true
@@ -348,6 +422,9 @@ class MapsService {
 
     // Calculate route with chunking for large number of waypoints
     async calculateChunkedRoute(origin, destination, originCoords, destCoords, waypointCoords, chunkSize) {
+        // Clear previous display
+        this.clearMapDisplay();
+
         // Sort waypoints by distance from origin for better chunking
         const sortedWaypoints = this.sortWaypointsByProximity(waypointCoords, originCoords, destCoords);
 
@@ -361,10 +438,14 @@ class MapsService {
 
         // Process each chunk
         const allOrderedStops = [];
+        const allRouteResults = []; // Store route results for display
         let totalDistance = 0;
         let totalDuration = 0;
         let currentOrigin = origin;
         let currentOriginCoords = originCoords;
+
+        // Colors for different chunks
+        const chunkColors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
         for (let i = 0; i < chunks.length; i++) {
             const chunk = chunks[i];
@@ -388,6 +469,14 @@ class MapsService {
                     chunkDestCoords,
                     chunkWaypoints
                 );
+
+                // Store route result for map display
+                if (chunkResult.googleRoute) {
+                    allRouteResults.push({
+                        route: chunkResult.googleRoute,
+                        color: chunkColors[i % chunkColors.length]
+                    });
+                }
 
                 // Add stops to our collection (skip the "start point" for non-first chunks)
                 const stopsToAdd = i === 0 ? chunkResult.stops : chunkResult.stops.slice(1);
@@ -447,8 +536,8 @@ class MapsService {
             });
         });
 
-        // Display combined route on map (show last chunk's route as approximation)
-        // For a more accurate visual, we'd need to render multiple routes
+        // Display all routes on map
+        this.displayChunkedRoutes(allRouteResults, allOrderedStops);
 
         return {
             success: true,
@@ -464,6 +553,66 @@ class MapsService {
             isChunked: true,
             chunkCount: chunks.length
         };
+    }
+
+    // Display all chunked routes and markers on map
+    displayChunkedRoutes(routeResults, allStops) {
+        if (!this.map) return;
+
+        // Display each route segment with its own renderer
+        routeResults.forEach((routeData, index) => {
+            if (index === 0 && this.directionsRenderer) {
+                // Use main renderer for first route
+                this.directionsRenderer.setOptions({
+                    suppressMarkers: true, // We'll add our own markers
+                    polylineOptions: {
+                        strokeColor: routeData.color,
+                        strokeWeight: 5,
+                        strokeOpacity: 0.9
+                    }
+                });
+                this.directionsRenderer.setDirections(routeData.route);
+            } else {
+                // Create additional renderer for other routes
+                const renderer = this.createAdditionalRenderer(routeData.color);
+                if (renderer) {
+                    renderer.setDirections(routeData.route);
+                }
+            }
+        });
+
+        // Add markers for all stops
+        const bounds = new google.maps.LatLngBounds();
+
+        allStops.forEach((stop, index) => {
+            if (stop.location) {
+                const position = new google.maps.LatLng(stop.location.lat, stop.location.lng);
+                bounds.extend(position);
+
+                // Determine marker color
+                let color;
+                if (index === 0) {
+                    color = '#22c55e'; // Green for start
+                } else if (index === allStops.length - 1) {
+                    color = '#ef4444'; // Red for end
+                } else {
+                    color = '#6366f1'; // Blue for waypoints
+                }
+
+                // Add marker with stop number
+                this.addMarker(
+                    position,
+                    String(index + 1),
+                    stop.name + ' - ' + stop.address,
+                    color
+                );
+            }
+        });
+
+        // Fit map to show all markers
+        if (allStops.length > 0) {
+            this.map.fitBounds(bounds);
+        }
     }
 
     // Calculate a single chunk of the route
