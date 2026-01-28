@@ -84,7 +84,8 @@ class MapsService {
         this.map = new google.maps.Map(container, {
             center: defaultCenter,
             zoom: 8,
-            styles: this.getMapStyles(),
+            // Note: styles cannot be used with mapId - use Cloud-based map styling instead
+            // See: https://developers.google.com/maps/documentation/javascript/styling#cloud_tooling
             mapTypeControl: false,
             streetViewControl: false,
             fullscreenControl: true,
@@ -138,16 +139,16 @@ class MapsService {
             background: color,
             borderColor: 'white',
             glyphColor: 'white',
-            glyph: label,
+            glyphText: label, // Use glyphText instead of deprecated glyph
             scale: 1.2
         });
 
-        // Create advanced marker
+        // Create advanced marker (pass pinElement directly, not .element)
         const marker = new google.maps.marker.AdvancedMarkerElement({
             position: location,
             map: this.map,
             title: title,
-            content: pinElement.element
+            content: pinElement
         });
 
         this.markers.push(marker);
