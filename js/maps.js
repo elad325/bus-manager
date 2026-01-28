@@ -282,16 +282,31 @@ class MapsService {
             throw new Error('לא ניתן למצוא את הכתובות');
         }
 
-        // Geocode waypoints
+        // Geocode waypoints with small delay to avoid rate limiting
         const waypointCoords = [];
-        for (const wp of waypoints) {
+        let failedGeocode = [];
+        for (let i = 0; i < waypoints.length; i++) {
+            const wp = waypoints[i];
             const coords = await this.geocodeAddress(wp.address);
             if (coords) {
                 waypointCoords.push({
                     ...wp,
                     location: coords
                 });
+            } else {
+                console.warn(`Failed to geocode address: ${wp.address} for ${wp.name}`);
+                failedGeocode.push(wp);
             }
+
+            // Small delay every 10 requests to avoid rate limiting
+            if (i > 0 && i % 10 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
+
+        console.log(`Geocoded ${waypointCoords.length}/${waypoints.length} waypoints successfully`);
+        if (failedGeocode.length > 0) {
+            console.warn('Failed to geocode:', failedGeocode.map(wp => wp.address));
         }
 
         // Google Maps allows max 25 waypoints per request
