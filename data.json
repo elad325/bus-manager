@@ -17,13 +17,6 @@
   ],
   "students": [
     {
-      "firstName": "יהונתן",
-      "lastName": "מורד",
-      "address": "צפת",
-      "busId": "bus_1769021775882",
-      "id": "student_1769022362697"
-    },
-    {
       "firstName": "ירין",
       "lastName": "צור",
       "address": "צופים",
