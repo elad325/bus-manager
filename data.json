@@ -17,13 +17,6 @@
   ],
   "students": [
     {
-      "firstName": "אלעד",
-      "lastName": "סבירו",
-      "address": "עתניאל",
-      "busId": "bus_1768972892881",
-      "id": "student_1768937131057"
-    },
-    {
       "firstName": "יואל נתן",
       "lastName": "בלוך",
       "address": "טלמון",
