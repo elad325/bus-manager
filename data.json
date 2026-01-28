@@ -1,9 +1,9 @@
 {
   "buses": [
     {
-      "name": "קו 1",
-      "startLocation": "קרית שמונה",
-      "endLocation": "עכו",
+      "name": "אוטובס גולן ירושלים",
+      "startLocation": "מירון",
+      "endLocation": "מרכז",
       "notes": "",
       "id": "bus_1768972866583"
     },
