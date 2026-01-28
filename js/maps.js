@@ -352,6 +352,10 @@ class MapsService {
                 if (status === 'OK') {
                     // Display route on map
                     if (this.directionsRenderer) {
+                        // Hide default markers - we'll add our own
+                        this.directionsRenderer.setOptions({
+                            suppressMarkers: true
+                        });
                         this.directionsRenderer.setDirections(result);
                     }
 
@@ -427,6 +431,9 @@ class MapsService {
 
                     console.log(`Final route has ${orderedStops.length} stops`);
                     console.log('Stops:', orderedStops.map(s => `${s.order}: ${s.name} (${s.address})`));
+
+                    // Add markers for all stops
+                    this.addMarkersForStops(orderedStops);
 
                     resolve({
                         success: true,
@@ -581,6 +588,41 @@ class MapsService {
             isChunked: true,
             chunkCount: chunks.length
         };
+    }
+
+    // Add markers for all stops and fit map bounds
+    addMarkersForStops(stops) {
+        if (!this.map || stops.length === 0) return;
+
+        const bounds = new google.maps.LatLngBounds();
+
+        stops.forEach((stop, index) => {
+            if (stop.location) {
+                const position = new google.maps.LatLng(stop.location.lat, stop.location.lng);
+                bounds.extend(position);
+
+                // Determine marker color
+                let color;
+                if (index === 0) {
+                    color = '#22c55e'; // Green for start
+                } else if (index === stops.length - 1) {
+                    color = '#ef4444'; // Red for end
+                } else {
+                    color = '#6366f1'; // Blue for waypoints
+                }
+
+                // Add marker with stop number
+                this.addMarker(
+                    position,
+                    String(index + 1),
+                    stop.name + ' - ' + stop.address,
+                    color
+                );
+            }
+        });
+
+        // Fit map to show all markers
+        this.map.fitBounds(bounds);
     }
 
     // Display all chunked routes and markers on map
