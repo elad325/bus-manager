@@ -281,6 +281,13 @@
       "address": "באר שבע",
       "busId": "",
       "id": "student_1769617353512"
+    },
+    {
+      "firstName": "רפאל ברוך",
+      "lastName": "יפרח",
+      "address": "צפת",
+      "busId": "",
+      "id": "student_1769617354571"
     }
   ]
 }
