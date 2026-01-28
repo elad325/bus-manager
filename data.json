@@ -36,6 +36,13 @@
       "address": "הושעיה",
       "busId": "",
       "id": "student_1769617311765"
+    },
+    {
+      "firstName": "אדיר",
+      "lastName": "אלמועלם",
+      "address": "גבעת אבני",
+      "busId": "",
+      "id": "student_1769617313011"
     }
   ]
 }
