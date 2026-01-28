@@ -197,7 +197,7 @@ class MapsService {
         console.log('Geocode cache cleared');
     }
 
-    // Calculate optimized route
+    // Calculate optimized route - handles large number of waypoints by chunking
     async calculateRoute(origin, destination, waypoints) {
         if (!this.directionsService) {
             throw new Error('Google Maps לא מוגדר');
@@ -223,6 +223,22 @@ class MapsService {
             }
         }
 
+        // Google Maps allows max 25 waypoints per request
+        // If we have more, we need to split into chunks and merge results
+        const MAX_WAYPOINTS = 23; // Leave room for origin/destination connections
+
+        if (waypointCoords.length <= MAX_WAYPOINTS) {
+            // Can do it in one request
+            return this.calculateSingleRoute(origin, destination, originCoords, destCoords, waypointCoords);
+        } else {
+            // Need to split into chunks and merge
+            console.log(`Splitting ${waypointCoords.length} waypoints into chunks of ${MAX_WAYPOINTS}`);
+            return this.calculateChunkedRoute(origin, destination, originCoords, destCoords, waypointCoords, MAX_WAYPOINTS);
+        }
+    }
+
+    // Calculate route for a single chunk (up to 25 waypoints)
+    async calculateSingleRoute(origin, destination, originCoords, destCoords, waypointCoords) {
         const waypointsForGoogle = waypointCoords.map(wp => ({
             location: new google.maps.LatLng(wp.location.lat, wp.location.lng),
             stopover: true
@@ -328,6 +344,241 @@ class MapsService {
                 }
             });
         });
+    }
+
+    // Calculate route with chunking for large number of waypoints
+    async calculateChunkedRoute(origin, destination, originCoords, destCoords, waypointCoords, chunkSize) {
+        // Sort waypoints by distance from origin for better chunking
+        const sortedWaypoints = this.sortWaypointsByProximity(waypointCoords, originCoords, destCoords);
+
+        // Split into chunks
+        const chunks = [];
+        for (let i = 0; i < sortedWaypoints.length; i += chunkSize) {
+            chunks.push(sortedWaypoints.slice(i, i + chunkSize));
+        }
+
+        console.log(`Split into ${chunks.length} chunks`);
+
+        // Process each chunk
+        const allOrderedStops = [];
+        let totalDistance = 0;
+        let totalDuration = 0;
+        let currentOrigin = origin;
+        let currentOriginCoords = originCoords;
+
+        for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+            const isLastChunk = i === chunks.length - 1;
+
+            // For last chunk, use actual destination; otherwise, use last waypoint of chunk as connection point
+            const chunkDest = isLastChunk ? destination : chunk[chunk.length - 1].address;
+            const chunkDestCoords = isLastChunk ? destCoords : chunk[chunk.length - 1].location;
+
+            // For non-last chunks, remove the last waypoint since it becomes the destination
+            const chunkWaypoints = isLastChunk ? chunk : chunk.slice(0, -1);
+
+            console.log(`Processing chunk ${i + 1}/${chunks.length}: ${chunkWaypoints.length} waypoints`);
+
+            try {
+                // Calculate this chunk's route
+                const chunkResult = await this.calculateChunkRoute(
+                    currentOrigin,
+                    chunkDest,
+                    currentOriginCoords,
+                    chunkDestCoords,
+                    chunkWaypoints
+                );
+
+                // Add stops to our collection (skip the "start point" for non-first chunks)
+                const stopsToAdd = i === 0 ? chunkResult.stops : chunkResult.stops.slice(1);
+
+                // Don't add the destination stop for non-last chunks (it becomes the next origin)
+                const finalStops = isLastChunk ? stopsToAdd : stopsToAdd.slice(0, -1);
+
+                allOrderedStops.push(...finalStops);
+
+                // Accumulate distance and duration
+                totalDistance += chunkResult.totalDistanceMeters;
+                totalDuration += chunkResult.totalDurationSeconds;
+
+                // Prepare for next chunk
+                if (!isLastChunk) {
+                    currentOrigin = chunk[chunk.length - 1].address;
+                    currentOriginCoords = chunk[chunk.length - 1].location;
+                }
+
+            } catch (error) {
+                console.error(`Error processing chunk ${i + 1}:`, error);
+                throw error;
+            }
+
+            // Small delay between API calls to avoid rate limiting
+            if (!isLastChunk) {
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+        }
+
+        // Add final destination
+        allOrderedStops.push({
+            order: allOrderedStops.length,
+            name: 'יעד סופי',
+            address: destination,
+            location: destCoords,
+            duration: null,
+            distance: null
+        });
+
+        // Renumber all stops
+        allOrderedStops.forEach((stop, index) => {
+            stop.order = index;
+        });
+
+        // Calculate arrival times
+        const now = new Date();
+        let cumulativeTime = 0;
+        allOrderedStops.forEach((stop, index) => {
+            if (index > 0) {
+                cumulativeTime += stop.durationSeconds || 0;
+            }
+            const arrivalTime = new Date(now.getTime() + cumulativeTime * 1000);
+            stop.estimatedArrival = arrivalTime.toLocaleTimeString('he-IL', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        });
+
+        // Display combined route on map (show last chunk's route as approximation)
+        // For a more accurate visual, we'd need to render multiple routes
+
+        return {
+            success: true,
+            stops: allOrderedStops,
+            summary: {
+                totalDistance: (totalDistance / 1000).toFixed(1) + ' ק"מ',
+                totalDistanceMeters: totalDistance,
+                totalDuration: this.formatDuration(totalDuration),
+                totalDurationSeconds: totalDuration,
+                stopsCount: allOrderedStops.length
+            },
+            googleRoute: null, // No single route for chunked calculation
+            isChunked: true,
+            chunkCount: chunks.length
+        };
+    }
+
+    // Calculate a single chunk of the route
+    async calculateChunkRoute(origin, destination, originCoords, destCoords, waypointCoords) {
+        const waypointsForGoogle = waypointCoords.map(wp => ({
+            location: new google.maps.LatLng(wp.location.lat, wp.location.lng),
+            stopover: true
+        }));
+
+        return new Promise((resolve, reject) => {
+            this.directionsService.route({
+                origin: new google.maps.LatLng(originCoords.lat, originCoords.lng),
+                destination: new google.maps.LatLng(destCoords.lat, destCoords.lng),
+                waypoints: waypointsForGoogle,
+                optimizeWaypoints: true,
+                travelMode: google.maps.TravelMode.DRIVING,
+                language: 'he'
+            }, (result, status) => {
+                if (status === 'OK') {
+                    const route = result.routes[0];
+                    const legs = route.legs;
+                    const optimizedOrder = route.waypoint_order;
+
+                    const stops = [{
+                        order: 0,
+                        name: 'נקודת התחלה',
+                        address: origin,
+                        location: originCoords,
+                        duration: null,
+                        distance: null,
+                        durationSeconds: 0
+                    }];
+
+                    // Reorder waypoints according to optimization
+                    optimizedOrder.forEach((originalIndex, newIndex) => {
+                        const wp = waypointCoords[originalIndex];
+                        const leg = legs[newIndex];
+
+                        stops.push({
+                            order: newIndex + 1,
+                            name: wp.name || `תחנה ${newIndex + 1}`,
+                            address: wp.address,
+                            location: wp.location,
+                            duration: leg.duration.text,
+                            durationSeconds: leg.duration.value,
+                            distance: leg.distance.text,
+                            distanceMeters: leg.distance.value
+                        });
+                    });
+
+                    // Add destination
+                    const lastLeg = legs[legs.length - 1];
+                    stops.push({
+                        order: stops.length,
+                        name: 'יעד',
+                        address: destination,
+                        location: destCoords,
+                        duration: lastLeg.duration.text,
+                        durationSeconds: lastLeg.duration.value,
+                        distance: lastLeg.distance.text,
+                        distanceMeters: lastLeg.distance.value
+                    });
+
+                    // Calculate totals
+                    let totalDistance = 0;
+                    let totalDuration = 0;
+                    legs.forEach(leg => {
+                        totalDistance += leg.distance.value;
+                        totalDuration += leg.duration.value;
+                    });
+
+                    resolve({
+                        stops,
+                        totalDistanceMeters: totalDistance,
+                        totalDurationSeconds: totalDuration,
+                        googleRoute: result
+                    });
+                } else {
+                    reject(new Error('חישוב המסלול נכשל: ' + status));
+                }
+            });
+        });
+    }
+
+    // Sort waypoints by proximity - start from origin, always pick nearest unvisited
+    sortWaypointsByProximity(waypoints, originCoords, destCoords) {
+        if (waypoints.length <= 1) return waypoints;
+
+        const sorted = [];
+        const remaining = [...waypoints];
+        let currentPos = originCoords;
+
+        while (remaining.length > 0) {
+            // Find nearest waypoint to current position
+            let nearestIndex = 0;
+            let nearestDist = Infinity;
+
+            for (let i = 0; i < remaining.length; i++) {
+                const dist = this.calculateDistance(
+                    currentPos.lat, currentPos.lng,
+                    remaining[i].location.lat, remaining[i].location.lng
+                );
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearestIndex = i;
+                }
+            }
+
+            // Add nearest to sorted list
+            const nearest = remaining.splice(nearestIndex, 1)[0];
+            sorted.push(nearest);
+            currentPos = nearest.location;
+        }
+
+        return sorted;
     }
 
     // Format duration in Hebrew
