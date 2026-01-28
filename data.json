@@ -169,6 +169,13 @@
       "address": "עלמה",
       "busId": "",
       "id": "student_1769617334466"
+    },
+    {
+      "firstName": "דוד אלעזר",
+      "lastName": "דוקטורוב",
+      "address": "אלוני הבשן",
+      "busId": "",
+      "id": "student_1769617335631"
     }
   ]
 }
