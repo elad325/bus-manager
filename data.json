@@ -204,6 +204,13 @@
       "address": "אלון שבות",
       "busId": "",
       "id": "student_1769617340202"
+    },
+    {
+      "firstName": "הלל",
+      "lastName": "זומר",
+      "address": "נוב",
+      "busId": "",
+      "id": "student_1769617341502"
     }
   ]
 }
