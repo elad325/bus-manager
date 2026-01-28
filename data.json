@@ -463,6 +463,13 @@
       "address": "כרמיאל",
       "busId": "",
       "id": "student_1769617391392"
+    },
+    {
+      "firstName": "משה",
+      "lastName": "עטר",
+      "address": "בית שאן",
+      "busId": "",
+      "id": "student_1769617392651"
     }
   ]
 }
