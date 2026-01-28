@@ -302,6 +302,13 @@
       "address": "צפת",
       "busId": "",
       "id": "student_1769617356656"
+    },
+    {
+      "firstName": "יהונתן",
+      "lastName": "כהן",
+      "address": "אלקנה",
+      "busId": "",
+      "id": "student_1769617358189"
     }
   ]
 }
