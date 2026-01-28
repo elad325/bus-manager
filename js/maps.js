@@ -32,20 +32,24 @@ class MapsService {
                 return;
             }
 
-            // Load Google Maps script
-            const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${this.apiKey}&libraries=places&language=he`;
-            script.async = true;
-            script.defer = true;
+            // Load Google Maps script with async loading parameter
+            // See: https://developers.google.com/maps/documentation/javascript/load-maps-js-api
+            const callbackName = '__googleMapsCallback_' + Date.now();
 
-            script.onload = () => {
+            window[callbackName] = () => {
                 this.isLoaded = true;
                 this.initServices();
+                delete window[callbackName];
                 resolve(true);
             };
 
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${this.apiKey}&libraries=places&language=he&loading=async&callback=${callbackName}`;
+            script.async = true;
+
             script.onerror = () => {
                 console.error('Failed to load Google Maps');
+                delete window[callbackName];
                 resolve(false);
             };
 
