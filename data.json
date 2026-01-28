@@ -85,6 +85,13 @@
       "address": "נווה מיכאל",
       "busId": "",
       "id": "student_1769617320676"
+    },
+    {
+      "firstName": "עמית מאיר",
+      "lastName": "בן ארוש",
+      "address": "אלוני הבשן",
+      "busId": "",
+      "id": "student_1769617321853"
     }
   ]
 }
