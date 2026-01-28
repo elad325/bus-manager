@@ -328,10 +328,15 @@ class MapsService {
         // Clear previous display
         this.clearMapDisplay();
 
+        console.log(`calculateSingleRoute: ${waypointCoords.length} waypoints`);
+        console.log('Waypoints:', waypointCoords.map(wp => `${wp.name}: ${wp.address}`));
+
         const waypointsForGoogle = waypointCoords.map(wp => ({
             location: new google.maps.LatLng(wp.location.lat, wp.location.lng),
             stopover: true
         }));
+
+        console.log(`Sending ${waypointsForGoogle.length} waypoints to DirectionsService`);
 
         return new Promise((resolve, reject) => {
             this.directionsService.route({
@@ -342,6 +347,8 @@ class MapsService {
                 travelMode: google.maps.TravelMode.DRIVING,
                 language: 'he'
             }, (result, status) => {
+                console.log(`DirectionsService response status: ${status}`);
+
                 if (status === 'OK') {
                     // Display route on map
                     if (this.directionsRenderer) {
@@ -352,6 +359,8 @@ class MapsService {
                     const route = result.routes[0];
                     const legs = route.legs;
                     const optimizedOrder = route.waypoint_order;
+
+                    console.log(`DirectionsService returned ${legs.length} legs, waypoint_order: [${optimizedOrder.join(', ')}]`);
 
                     // Build ordered stops
                     const orderedStops = [{
@@ -416,6 +425,9 @@ class MapsService {
                         });
                     });
 
+                    console.log(`Final route has ${orderedStops.length} stops`);
+                    console.log('Stops:', orderedStops.map(s => `${s.order}: ${s.name} (${s.address})`));
+
                     resolve({
                         success: true,
                         stops: orderedStops,
@@ -429,6 +441,7 @@ class MapsService {
                         googleRoute: result
                     });
                 } else {
+                    console.error(`DirectionsService failed with status: ${status}`);
                     reject(new Error('חישוב המסלול נכשל: ' + status));
                 }
             });
