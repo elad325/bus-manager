@@ -442,6 +442,13 @@
       "address": "בר יוחאי",
       "busId": "",
       "id": "student_1769617387066"
+    },
+    {
+      "firstName": "יצחק יוסף",
+      "lastName": "סלם",
+      "address": "ירושלים",
+      "busId": "",
+      "id": "student_1769617388655"
     }
   ]
 }
