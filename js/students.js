@@ -6,6 +6,7 @@ class StudentManager {
     constructor() {
         this.students = [];
         this.editingStudentId = null;
+        this.selectedStudentIds = new Set(); // Track selected students
     }
 
     // Initialize
@@ -64,6 +65,27 @@ class StudentManager {
         document.querySelectorAll('[data-close="student-modal"]').forEach(btn => {
             btn.addEventListener('click', () => this.closeStudentModal());
         });
+
+        // Selection controls
+        const selectAllCheckbox = document.getElementById('select-all-students');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', (e) => this.handleSelectAll(e.target.checked));
+        }
+
+        const bulkAssignBtn = document.getElementById('bulk-assign-btn');
+        if (bulkAssignBtn) {
+            bulkAssignBtn.addEventListener('click', () => this.bulkAssignStudents());
+        }
+
+        const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
+        if (bulkDeleteBtn) {
+            bulkDeleteBtn.addEventListener('click', () => this.confirmBulkDelete());
+        }
+
+        const clearSelectionBtn = document.getElementById('clear-selection-btn');
+        if (clearSelectionBtn) {
+            clearSelectionBtn.addEventListener('click', () => this.clearSelection());
+        }
     }
 
     // Render students table
@@ -89,9 +111,15 @@ class StudentManager {
         tbody.innerHTML = this.students.map(student => {
             const bus = buses.find(b => b.id === student.busId);
             const busName = bus ? bus.name : 'לא משויך';
+            const isSelected = this.selectedStudentIds.has(student.id);
 
             return `
-                <tr data-student-id="${student.id}">
+                <tr data-student-id="${student.id}" class="${isSelected ? 'selected-row' : ''}">
+                    ${isAdmin ? `
+                    <td>
+                        <input type="checkbox" class="student-checkbox" data-id="${student.id}" ${isSelected ? 'checked' : ''}>
+                    </td>
+                    ` : ''}
                     <td>${this.escapeHtml(student.firstName)}</td>
                     <td>${this.escapeHtml(student.lastName)}</td>
                     <td>${this.escapeHtml(student.address)}</td>
@@ -120,6 +148,14 @@ class StudentManager {
         tbody.querySelectorAll('.delete-student-btn').forEach(btn => {
             btn.addEventListener('click', () => this.confirmDeleteStudent(btn.dataset.id));
         });
+
+        // Add event listeners to checkboxes
+        tbody.querySelectorAll('.student-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => this.handleStudentSelect(e.target.dataset.id, e.target.checked));
+        });
+
+        // Update selection UI
+        this.updateSelectionUI();
     }
 
     // Open student modal
@@ -609,6 +645,241 @@ class StudentManager {
         } catch (error) {
             console.error('Error importing Excel:', error);
             window.app.showToast('שגיאה בייבוא הנתונים', 'error');
+        }
+    }
+
+    // ==========================================
+    // Selection Management Methods
+    // ==========================================
+
+    // Handle individual student selection
+    handleStudentSelect(studentId, isSelected) {
+        if (isSelected) {
+            this.selectedStudentIds.add(studentId);
+        } else {
+            this.selectedStudentIds.delete(studentId);
+        }
+
+        // Update row highlight
+        const row = document.querySelector(`tr[data-student-id="${studentId}"]`);
+        if (row) {
+            row.classList.toggle('selected-row', isSelected);
+        }
+
+        this.updateSelectionUI();
+    }
+
+    // Handle select all checkbox
+    handleSelectAll(isSelected) {
+        const visibleRows = document.querySelectorAll('#students-table-body tr[data-student-id]');
+
+        visibleRows.forEach(row => {
+            // Only select visible rows (not filtered out)
+            if (row.style.display !== 'none') {
+                const studentId = row.dataset.studentId;
+                const checkbox = row.querySelector('.student-checkbox');
+
+                if (isSelected) {
+                    this.selectedStudentIds.add(studentId);
+                } else {
+                    this.selectedStudentIds.delete(studentId);
+                }
+
+                if (checkbox) {
+                    checkbox.checked = isSelected;
+                }
+                row.classList.toggle('selected-row', isSelected);
+            }
+        });
+
+        this.updateSelectionUI();
+    }
+
+    // Clear all selections
+    clearSelection() {
+        this.selectedStudentIds.clear();
+
+        // Uncheck all checkboxes
+        document.querySelectorAll('.student-checkbox').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+
+        // Remove highlight from all rows
+        document.querySelectorAll('.selected-row').forEach(row => {
+            row.classList.remove('selected-row');
+        });
+
+        // Uncheck select all
+        const selectAllCheckbox = document.getElementById('select-all-students');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.checked = false;
+        }
+
+        this.updateSelectionUI();
+    }
+
+    // Update selection UI (count, buttons, action bar visibility)
+    updateSelectionUI() {
+        const count = this.selectedStudentIds.size;
+        const selectionCount = document.getElementById('selection-count');
+        const actionsBar = document.getElementById('selection-actions-bar');
+        const bulkAssignBtn = document.getElementById('bulk-assign-btn');
+        const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
+        const selectAllCheckbox = document.getElementById('select-all-students');
+
+        // Update count text
+        if (selectionCount) {
+            selectionCount.textContent = `${count} תלמידים נבחרו`;
+        }
+
+        // Show/hide actions bar
+        if (actionsBar) {
+            if (count > 0) {
+                actionsBar.classList.remove('hidden');
+            } else {
+                actionsBar.classList.add('hidden');
+            }
+        }
+
+        // Enable/disable action buttons
+        if (bulkAssignBtn) {
+            bulkAssignBtn.disabled = count === 0;
+        }
+        if (bulkDeleteBtn) {
+            bulkDeleteBtn.disabled = count === 0;
+        }
+
+        // Update select all checkbox state
+        if (selectAllCheckbox) {
+            const visibleRows = document.querySelectorAll('#students-table-body tr[data-student-id]:not([style*="display: none"])');
+            const selectedVisibleCount = Array.from(visibleRows).filter(row =>
+                this.selectedStudentIds.has(row.dataset.studentId)
+            ).length;
+
+            selectAllCheckbox.checked = visibleRows.length > 0 && selectedVisibleCount === visibleRows.length;
+            selectAllCheckbox.indeterminate = selectedVisibleCount > 0 && selectedVisibleCount < visibleRows.length;
+        }
+
+        // Populate bulk assign bus select
+        this.populateBulkAssignBusSelect();
+    }
+
+    // Populate the bulk assign bus dropdown
+    populateBulkAssignBusSelect() {
+        const select = document.getElementById('bulk-assign-bus');
+        if (!select) return;
+
+        const buses = window.busManager ? window.busManager.getAllBuses() : [];
+        const currentValue = select.value;
+
+        select.innerHTML = '<option value="">בחר אוטובוס לשיוך...</option>';
+        buses.forEach(bus => {
+            const option = document.createElement('option');
+            option.value = bus.id;
+            option.textContent = bus.name;
+            select.appendChild(option);
+        });
+
+        // Restore previous selection if still valid
+        if (currentValue && buses.some(b => b.id === currentValue)) {
+            select.value = currentValue;
+        }
+    }
+
+    // Bulk assign selected students to a bus
+    async bulkAssignStudents() {
+        const busSelect = document.getElementById('bulk-assign-bus');
+        const busId = busSelect?.value;
+
+        if (!busId) {
+            window.app.showToast('יש לבחור אוטובוס לשיוך', 'warning');
+            return;
+        }
+
+        const selectedIds = Array.from(this.selectedStudentIds);
+        if (selectedIds.length === 0) {
+            window.app.showToast('לא נבחרו תלמידים', 'warning');
+            return;
+        }
+
+        const bus = window.busManager?.getBus(busId);
+        const busName = bus ? bus.name : 'אוטובוס';
+
+        window.app.showConfirmModal(
+            `האם לשייך ${selectedIds.length} תלמידים ל"${busName}"?`,
+            async () => {
+                try {
+                    window.app.showToast('משייך תלמידים...', 'info');
+
+                    let successCount = 0;
+                    for (const studentId of selectedIds) {
+                        const student = this.students.find(s => s.id === studentId);
+                        if (student) {
+                            student.busId = busId;
+                            await window.storage.saveStudent(student);
+                            successCount++;
+                        }
+                    }
+
+                    await this.loadStudents();
+                    this.clearSelection();
+                    window.app.showToast(`${successCount} תלמידים שויכו בהצלחה`, 'success');
+                    window.app.updateDashboardStats();
+
+                    if (window.busManager) {
+                        window.busManager.renderBusesList();
+                    }
+                } catch (error) {
+                    console.error('Error bulk assigning students:', error);
+                    window.app.showToast('שגיאה בשיוך התלמידים', 'error');
+                }
+            }
+        );
+    }
+
+    // Confirm bulk delete
+    confirmBulkDelete() {
+        const selectedIds = Array.from(this.selectedStudentIds);
+        if (selectedIds.length === 0) {
+            window.app.showToast('לא נבחרו תלמידים', 'warning');
+            return;
+        }
+
+        window.app.showConfirmModal(
+            `האם למחוק ${selectedIds.length} תלמידים? פעולה זו אינה ניתנת לביטול.`,
+            async () => {
+                await this.bulkDeleteStudents(selectedIds);
+            },
+            true // isDelete
+        );
+    }
+
+    // Bulk delete students
+    async bulkDeleteStudents(studentIds) {
+        try {
+            window.app.showToast('מוחק תלמידים...', 'info');
+
+            let successCount = 0;
+            for (const studentId of studentIds) {
+                try {
+                    await window.storage.deleteStudent(studentId);
+                    successCount++;
+                } catch (error) {
+                    console.error(`Error deleting student ${studentId}:`, error);
+                }
+            }
+
+            await this.loadStudents();
+            this.clearSelection();
+            window.app.showToast(`${successCount} תלמידים נמחקו בהצלחה`, 'success');
+            window.app.updateDashboardStats();
+
+            if (window.busManager) {
+                window.busManager.renderBusesList();
+            }
+        } catch (error) {
+            console.error('Error bulk deleting students:', error);
+            window.app.showToast('שגיאה במחיקת התלמידים', 'error');
         }
     }
 
