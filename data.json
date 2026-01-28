@@ -113,6 +113,13 @@
       "address": "כפר גדעון",
       "busId": "",
       "id": "student_1769617325225"
+    },
+    {
+      "firstName": "נעם",
+      "lastName": "בן ציון",
+      "address": "מנחמיה",
+      "busId": "",
+      "id": "student_1769617326404"
     }
   ]
 }
