@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="busGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#3a7bd5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a1d2e;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Bus body -->
+  <rect x="15" y="25" width="70" height="45" rx="8" ry="8" fill="url(#busGradient)"/>
+  <!-- Windows -->
+  <rect x="22" y="32" width="12" height="15" rx="2" fill="#e8f4fc"/>
+  <rect x="38" y="32" width="12" height="15" rx="2" fill="#e8f4fc"/>
+  <rect x="54" y="32" width="12" height="15" rx="2" fill="#e8f4fc"/>
+  <rect x="70" y="32" width="12" height="15" rx="2" fill="#e8f4fc"/>
+  <!-- Front windshield -->
+  <rect x="70" y="32" width="12" height="20" rx="2" fill="#b8d4e8"/>
+  <!-- Headlight -->
+  <rect x="80" y="55" width="5" height="8" rx="1" fill="#ffd700"/>
+  <!-- Wheels -->
+  <circle cx="30" cy="70" r="8" fill="#333"/>
+  <circle cx="30" cy="70" r="4" fill="#666"/>
+  <circle cx="70" cy="70" r="8" fill="#333"/>
+  <circle cx="70" cy="70" r="4" fill="#666"/>
+  <!-- Door -->
+  <rect x="22" y="50" width="10" height="18" rx="1" fill="#2a4a6a"/>
+  <rect x="29" y="54" width="2" height="10" rx="1" fill="#4a6a8a"/>
+</svg>
