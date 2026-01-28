@@ -17,13 +17,6 @@
   ],
   "students": [
     {
-      "firstName": "דוד אלעזר",
-      "lastName": "דוקטורוב",
-      "address": "אלוני הבשן",
-      "busId": "bus_1769021775882",
-      "id": "student_1769022362693"
-    },
-    {
       "firstName": "אור נח",
       "lastName": "ויזניצר",
       "address": "אלון שבות",
