@@ -29,6 +29,13 @@
       "address": "כפר פינס",
       "busId": "",
       "id": "student_1769617310395"
+    },
+    {
+      "firstName": "משה דוד",
+      "lastName": "אורנשטיין",
+      "address": "הושעיה",
+      "busId": "",
+      "id": "student_1769617311765"
     }
   ]
 }
