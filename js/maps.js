@@ -44,7 +44,7 @@ class MapsService {
             };
 
             const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${this.apiKey}&libraries=places&language=he&loading=async&callback=${callbackName}`;
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${this.apiKey}&libraries=places,marker&language=he&loading=async&callback=${callbackName}`;
             script.async = true;
 
             script.onerror = () => {
@@ -87,7 +87,8 @@ class MapsService {
             styles: this.getMapStyles(),
             mapTypeControl: false,
             streetViewControl: false,
-            fullscreenControl: true
+            fullscreenControl: true,
+            mapId: 'bus_manager_map' // Required for AdvancedMarkerElement
         });
 
         this.directionsRenderer = new google.maps.DirectionsRenderer({
@@ -104,8 +105,10 @@ class MapsService {
 
     // Clear all markers and route renderers from map
     clearMapDisplay() {
-        // Clear markers
-        this.markers.forEach(marker => marker.setMap(null));
+        // Clear markers (AdvancedMarkerElement uses .map property instead of setMap method)
+        this.markers.forEach(marker => {
+            marker.map = null;
+        });
         this.markers = [];
 
         // Clear additional renderers
@@ -126,27 +129,25 @@ class MapsService {
         }
     }
 
-    // Add a marker to the map
+    // Add a marker to the map using AdvancedMarkerElement
     addMarker(location, label, title, color = '#6366f1') {
         if (!this.map) return null;
 
-        const marker = new google.maps.Marker({
+        // Create custom pin element
+        const pinElement = new google.maps.marker.PinElement({
+            background: color,
+            borderColor: 'white',
+            glyphColor: 'white',
+            glyph: label,
+            scale: 1.2
+        });
+
+        // Create advanced marker
+        const marker = new google.maps.marker.AdvancedMarkerElement({
             position: location,
             map: this.map,
-            label: {
-                text: label,
-                color: 'white',
-                fontWeight: 'bold'
-            },
             title: title,
-            icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 12,
-                fillColor: color,
-                fillOpacity: 1,
-                strokeColor: 'white',
-                strokeWeight: 2
-            }
+            content: pinElement.element
         });
 
         this.markers.push(marker);
@@ -220,7 +221,7 @@ class MapsService {
         ];
     }
 
-    // Geocode address to coordinates (with caching)
+    // Geocode address to coordinates (with caching and multiple fallback strategies)
     async geocodeAddress(address) {
         if (!this.geocoder) {
             console.error('Geocoder not initialized');
@@ -247,59 +248,81 @@ class MapsService {
             return this.geocodeCache[cacheKey];
         }
 
-        return new Promise((resolve) => {
-            // Try with "יישוב" prefix for better matching of Israeli settlements
-            const searchAddress = cleanAddress + ', ישראל';
+        // Israel bounding box for better results
+        const israelBounds = new google.maps.LatLngBounds(
+            new google.maps.LatLng(29.45, 34.25),  // Southwest
+            new google.maps.LatLng(33.35, 35.90)   // Northeast
+        );
 
-            this.geocoder.geocode({ address: searchAddress }, (results, status) => {
-                if (status === 'OK' && results[0]) {
-                    const formattedAddress = results[0].formatted_address;
+        // Multiple search strategies for Israeli locations
+        const searchStrategies = [
+            // Strategy 1: Address with Israel, component restriction
+            {
+                address: cleanAddress,
+                componentRestrictions: { country: 'IL' },
+                bounds: israelBounds
+            },
+            // Strategy 2: Address + ישראל suffix with region
+            {
+                address: cleanAddress + ', ישראל',
+                region: 'IL',
+                bounds: israelBounds
+            },
+            // Strategy 3: יישוב prefix for settlements
+            {
+                address: 'יישוב ' + cleanAddress,
+                componentRestrictions: { country: 'IL' },
+                bounds: israelBounds
+            },
+            // Strategy 4: Just the address with bounds (sometimes works better)
+            {
+                address: cleanAddress,
+                bounds: israelBounds,
+                region: 'IL'
+            }
+        ];
 
-                    // Check if geocoding returned a valid result
-                    // If formattedAddress is just "ישראל" or doesn't contain useful location info,
-                    // the geocoding failed silently
-                    if (formattedAddress === 'ישראל' || formattedAddress === 'Israel') {
-                        console.warn(`Geocode returned generic "Israel" for "${cleanAddress}" - trying with region bias`);
+        // Helper to check if result is valid (not just generic "Israel")
+        const isValidResult = (results) => {
+            if (!results || !results[0]) return false;
+            const formatted = results[0].formatted_address;
+            if (formatted === 'ישראל' || formatted === 'Israel') return false;
+            // Also check that we got a specific enough result (not just country level)
+            const types = results[0].types || [];
+            if (types.includes('country') && types.length === 1) return false;
+            return true;
+        };
 
-                        // Try again with more specific query
-                        this.geocoder.geocode({
-                            address: 'יישוב ' + cleanAddress + ', ישראל',
-                            region: 'IL'
-                        }, (results2, status2) => {
-                            if (status2 === 'OK' && results2[0] &&
-                                results2[0].formatted_address !== 'ישראל' &&
-                                results2[0].formatted_address !== 'Israel') {
-                                const result = {
-                                    lat: results2[0].geometry.location.lat(),
-                                    lng: results2[0].geometry.location.lng(),
-                                    formattedAddress: results2[0].formatted_address
-                                };
-                                console.log(`Geocoded (retry) "${cleanAddress}" -> ${result.lat}, ${result.lng} (${result.formattedAddress})`);
-                                this.geocodeCache[cacheKey] = result;
-                                resolve(result);
-                            } else {
-                                console.error(`Geocode failed for "${cleanAddress}": could not find location`);
-                                resolve(null);
-                            }
-                        });
-                        return;
-                    }
+        // Try each strategy
+        for (let i = 0; i < searchStrategies.length; i++) {
+            const strategy = searchStrategies[i];
+            try {
+                const result = await new Promise((resolve) => {
+                    this.geocoder.geocode(strategy, (results, status) => {
+                        if (status === 'OK' && isValidResult(results)) {
+                            resolve({
+                                lat: results[0].geometry.location.lat(),
+                                lng: results[0].geometry.location.lng(),
+                                formattedAddress: results[0].formatted_address
+                            });
+                        } else {
+                            resolve(null);
+                        }
+                    });
+                });
 
-                    const result = {
-                        lat: results[0].geometry.location.lat(),
-                        lng: results[0].geometry.location.lng(),
-                        formattedAddress: formattedAddress
-                    };
-                    console.log(`Geocoded "${cleanAddress}" -> ${result.lat}, ${result.lng} (${result.formattedAddress})`);
-                    // Save to cache
+                if (result) {
+                    console.log(`Geocoded "${cleanAddress}" (strategy ${i + 1}) -> ${result.lat}, ${result.lng} (${result.formattedAddress})`);
                     this.geocodeCache[cacheKey] = result;
-                    resolve(result);
-                } else {
-                    console.error(`Geocode failed for "${cleanAddress}":`, status);
-                    resolve(null);
+                    return result;
                 }
-            });
-        });
+            } catch (e) {
+                console.warn(`Geocode strategy ${i + 1} failed for "${cleanAddress}":`, e);
+            }
+        }
+
+        console.error(`Geocode failed for "${cleanAddress}": all strategies exhausted`);
+        return null;
     }
 
     // Clear geocode cache (useful if addresses change)
