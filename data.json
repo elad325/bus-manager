@@ -15,5 +15,13 @@
       "id": "bus_1768972892881"
     }
   ],
-  "students": []
+  "students": [
+    {
+      "firstName": "יוסף",
+      "lastName": "אגיב",
+      "address": "מירון",
+      "busId": "",
+      "id": "student_1769617309332"
+    }
+  ]
 }
