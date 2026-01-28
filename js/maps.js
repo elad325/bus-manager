@@ -251,11 +251,12 @@ class MapsService {
                         lng: results[0].geometry.location.lng(),
                         formattedAddress: results[0].formatted_address
                     };
+                    console.log(`Geocoded "${cleanAddress}" -> ${result.lat}, ${result.lng} (${result.formattedAddress})`);
                     // Save to cache
                     this.geocodeCache[cacheKey] = result;
                     resolve(result);
                 } else {
-                    console.error('Geocode failed:', status);
+                    console.error(`Geocode failed for "${cleanAddress}":`, status);
                     resolve(null);
                 }
             });
@@ -308,6 +309,12 @@ class MapsService {
         if (failedGeocode.length > 0) {
             console.warn('Failed to geocode:', failedGeocode.map(wp => wp.address));
         }
+
+        // Debug: log all waypoint coordinates
+        console.log('Waypoint coordinates:');
+        waypointCoords.forEach(wp => {
+            console.log(`  ${wp.name} (${wp.address}): ${wp.location.lat}, ${wp.location.lng}`);
+        });
 
         // Google Maps allows max 25 waypoints per request
         // If we have more, we need to split into chunks and merge results
