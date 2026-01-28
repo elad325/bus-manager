@@ -295,6 +295,13 @@
       "address": "דולב",
       "busId": "",
       "id": "student_1769617355587"
+    },
+    {
+      "firstName": "יהודה הלל",
+      "lastName": "ישראל",
+      "address": "צפת",
+      "busId": "",
+      "id": "student_1769617356656"
     }
   ]
 }
