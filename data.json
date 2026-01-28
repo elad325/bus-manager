@@ -15,13 +15,5 @@
       "id": "bus_1768972892881"
     }
   ],
-  "students": [
-    {
-      "firstName": "אלישיב",
-      "lastName": "שריידר",
-      "address": "אלון שבות",
-      "busId": "bus_1769021830173",
-      "id": "student_1769022362700"
-    }
-  ]
+  "students": []
 }
