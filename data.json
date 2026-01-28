@@ -2,7 +2,7 @@
   "buses": [
     {
       "name": "אוטובס גולן ירושלים",
-      "startLocation": "מירון",
+      "startLocation": "ישיבת בני עקיבא מירון",
       "endLocation": "מרכז",
       "notes": "",
       "id": "bus_1768972866583"
