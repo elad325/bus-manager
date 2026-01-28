@@ -106,6 +106,13 @@
       "address": "ירושלים",
       "busId": "",
       "id": "student_1769617323854"
+    },
+    {
+      "firstName": "שעה",
+      "lastName": "בן צבי",
+      "address": "כפר גדעון",
+      "busId": "",
+      "id": "student_1769617325225"
     }
   ]
 }
