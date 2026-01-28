@@ -57,6 +57,13 @@
       "address": "אלון שבות",
       "busId": "bus_1769021830173",
       "id": "student_1769022362694"
+    },
+    {
+      "firstName": "ישי",
+      "lastName": "חסין",
+      "address": "קצרין",
+      "busId": "bus_1769021775882",
+      "id": "student_1769022362695"
     }
   ]
 }
