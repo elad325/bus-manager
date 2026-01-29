@@ -533,13 +533,10 @@ class MapsService {
         // Sort waypoints by distance from origin for better chunking
         const sortedWaypoints = this.sortWaypointsByProximity(waypointCoords, originCoords, destCoords);
 
-        // Split into chunks
-        const chunks = [];
-        for (let i = 0; i < sortedWaypoints.length; i += chunkSize) {
-            chunks.push(sortedWaypoints.slice(i, i + chunkSize));
-        }
+        // Split into chunks - use smart chunking that considers connection points
+        const chunks = this.createSmartChunks(sortedWaypoints, chunkSize, originCoords, destCoords);
 
-        console.log(`Split into ${chunks.length} chunks`);
+        console.log(`Split into ${chunks.length} chunks (smart chunking)`);
 
         // Process each chunk
         const allOrderedStops = [];
@@ -552,16 +549,40 @@ class MapsService {
         // Colors for different chunks
         const chunkColors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
+        // Track the remaining waypoints for dynamic connection point selection
+        let remainingWaypoints = sortedWaypoints.slice();
+        let processedWaypoints = [];
+
         for (let i = 0; i < chunks.length; i++) {
-            const chunk = chunks[i];
             const isLastChunk = i === chunks.length - 1;
 
-            // For last chunk, use actual destination; otherwise, use last waypoint of chunk as connection point
-            const chunkDest = isLastChunk ? destination : chunk[chunk.length - 1].address;
-            const chunkDestCoords = isLastChunk ? destCoords : chunk[chunk.length - 1].location;
+            // Get current chunk waypoints (excluding the connection point for non-last chunks)
+            let chunkWaypoints = chunks[i];
+            let chunkDest, chunkDestCoords, connectionWaypoint;
 
-            // For non-last chunks, remove the last waypoint since it becomes the destination
-            const chunkWaypoints = isLastChunk ? chunk : chunk.slice(0, -1);
+            if (isLastChunk) {
+                // Last chunk uses the actual destination
+                chunkDest = destination;
+                chunkDestCoords = destCoords;
+            } else {
+                // Find the best connection point from the next chunk
+                // This is the waypoint in the next chunk that's most "on the way" to the destination
+                const nextChunk = chunks[i + 1];
+                connectionWaypoint = this.findBestConnectionPoint(
+                    chunkWaypoints,
+                    nextChunk,
+                    currentOriginCoords,
+                    destCoords
+                );
+
+                chunkDest = connectionWaypoint.address;
+                chunkDestCoords = connectionWaypoint.location;
+
+                // Remove connection waypoint from current chunk's waypoints (it becomes the destination)
+                chunkWaypoints = chunkWaypoints.filter(wp => wp !== connectionWaypoint);
+
+                console.log(`Chunk ${i + 1} connection point: ${connectionWaypoint.address}`);
+            }
 
             console.log(`Processing chunk ${i + 1}/${chunks.length}: ${chunkWaypoints.length} waypoints`);
 
@@ -595,10 +616,10 @@ class MapsService {
                 totalDistance += chunkResult.totalDistanceMeters;
                 totalDuration += chunkResult.totalDurationSeconds;
 
-                // Prepare for next chunk
-                if (!isLastChunk) {
-                    currentOrigin = chunk[chunk.length - 1].address;
-                    currentOriginCoords = chunk[chunk.length - 1].location;
+                // Prepare for next chunk - use the connection waypoint as the new origin
+                if (!isLastChunk && connectionWaypoint) {
+                    currentOrigin = connectionWaypoint.address;
+                    currentOriginCoords = connectionWaypoint.location;
                 }
 
             } catch (error) {
@@ -868,6 +889,130 @@ class MapsService {
         }
 
         return sorted;
+    }
+
+    // Create smart chunks that consider geographic clustering and optimal connection points
+    createSmartChunks(sortedWaypoints, chunkSize, originCoords, destCoords) {
+        if (sortedWaypoints.length <= chunkSize) {
+            return [sortedWaypoints];
+        }
+
+        const chunks = [];
+        let remaining = [...sortedWaypoints];
+
+        while (remaining.length > 0) {
+            if (remaining.length <= chunkSize) {
+                // Last chunk - take all remaining
+                chunks.push(remaining);
+                break;
+            }
+
+            // Take up to chunkSize waypoints
+            // But try to find a natural break point based on distance gaps
+            const chunk = remaining.slice(0, chunkSize);
+
+            // Find the best break point within the last few waypoints of the chunk
+            // Look for the largest distance gap which indicates a natural cluster boundary
+            const breakSearchStart = Math.max(0, chunkSize - 5);
+            let bestBreakIndex = chunkSize - 1;
+            let maxGap = 0;
+
+            for (let i = breakSearchStart; i < chunkSize - 1 && i < remaining.length - 1; i++) {
+                const gap = this.calculateDistance(
+                    remaining[i].location.lat, remaining[i].location.lng,
+                    remaining[i + 1].location.lat, remaining[i + 1].location.lng
+                );
+                if (gap > maxGap) {
+                    maxGap = gap;
+                    bestBreakIndex = i;
+                }
+            }
+
+            // Use the break point (add 1 because we want to include the waypoint at bestBreakIndex)
+            const actualChunkSize = bestBreakIndex + 1;
+            chunks.push(remaining.slice(0, actualChunkSize));
+            remaining = remaining.slice(actualChunkSize);
+        }
+
+        return chunks;
+    }
+
+    // Find the best connection point between current chunk and next chunk
+    // This waypoint will serve as the destination for the current chunk and origin for the next
+    findBestConnectionPoint(currentChunk, nextChunk, currentOriginCoords, finalDestCoords) {
+        if (!nextChunk || nextChunk.length === 0) {
+            return currentChunk[currentChunk.length - 1];
+        }
+
+        // Calculate the centroid of the current chunk (approximate ending area)
+        const currentCentroid = this.calculateCentroid(currentChunk);
+
+        // Find the waypoint in the combined chunks that best serves as a transition point
+        // We want a point that:
+        // 1. Is relatively close to the current chunk's general area
+        // 2. Is a good starting point for reaching the rest of the next chunk
+        // 3. Makes progress towards the final destination
+
+        let bestWaypoint = nextChunk[0];
+        let bestScore = Infinity;
+
+        // Look at waypoints from both current chunk (last few) and next chunk (first few)
+        const candidates = [
+            ...currentChunk.slice(-3),  // Last 3 from current chunk
+            ...nextChunk.slice(0, 5)     // First 5 from next chunk
+        ];
+
+        for (const wp of candidates) {
+            // Distance from current chunk centroid
+            const distFromCurrent = this.calculateDistance(
+                currentCentroid.lat, currentCentroid.lng,
+                wp.location.lat, wp.location.lng
+            );
+
+            // Distance to next chunk centroid (how well it can reach the next chunk)
+            const nextCentroid = this.calculateCentroid(nextChunk.filter(w => w !== wp));
+            const distToNext = this.calculateDistance(
+                wp.location.lat, wp.location.lng,
+                nextCentroid.lat, nextCentroid.lng
+            );
+
+            // Distance to final destination (progress towards goal)
+            const distToFinal = this.calculateDistance(
+                wp.location.lat, wp.location.lng,
+                finalDestCoords.lat, finalDestCoords.lng
+            );
+
+            // Score: balance between being reachable and being a good starting point
+            // Lower score is better
+            const score = distFromCurrent * 0.3 + distToNext * 0.4 + distToFinal * 0.3;
+
+            if (score < bestScore) {
+                bestScore = score;
+                bestWaypoint = wp;
+            }
+        }
+
+        return bestWaypoint;
+    }
+
+    // Calculate the centroid (geographic center) of a set of waypoints
+    calculateCentroid(waypoints) {
+        if (waypoints.length === 0) {
+            return { lat: 0, lng: 0 };
+        }
+
+        let sumLat = 0;
+        let sumLng = 0;
+
+        for (const wp of waypoints) {
+            sumLat += wp.location.lat;
+            sumLng += wp.location.lng;
+        }
+
+        return {
+            lat: sumLat / waypoints.length,
+            lng: sumLng / waypoints.length
+        };
     }
 
     // Format duration in Hebrew
