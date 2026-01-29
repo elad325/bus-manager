@@ -1308,20 +1308,312 @@ class MapsService {
     }
 
     // ==========================================
-    // SMART BATCH ASSIGNMENT ALGORITHM
+    // K-MEANS CLUSTERING ALGORITHM
     // ==========================================
 
     /**
-     * Smart batch assignment - assigns ALL students optimally to buses
-     * Instead of assigning one-by-one (greedy), this algorithm:
-     * 1. Groups students by location
-     * 2. Calculates affinity scores for each location-group to each bus
-     * 3. Assigns groups to buses optimally (largest groups first)
-     * 4. Balances capacity across buses
+     * K-Means clustering algorithm for geographic grouping
+     * Groups students into K clusters based on their coordinates
+     * @param {Array} points - Array of {lat, lng, data} objects
+     * @param {number} k - Number of clusters
+     * @param {number} maxIterations - Maximum iterations (default 100)
+     * @returns {Array} Array of clusters, each containing points
      */
-    async smartBatchAssignment(students, buses, progressCallback = null) {
-        const MAX_BUS_CAPACITY = 50;
-        const PROXIMITY_THRESHOLD_KM = 3; // Students within 3km are grouped together
+    kMeansClustering(points, k, maxIterations = 100) {
+        if (points.length === 0 || k <= 0) return [];
+        if (points.length <= k) {
+            // Each point is its own cluster
+            return points.map(p => ({ centroid: { lat: p.lat, lng: p.lng }, points: [p] }));
+        }
+
+        // Initialize centroids using K-Means++ for better starting positions
+        let centroids = this.initializeCentroidsKMeansPlusPlus(points, k);
+
+        let clusters = [];
+        let previousAssignments = [];
+
+        for (let iteration = 0; iteration < maxIterations; iteration++) {
+            // Step 1: Assign each point to nearest centroid
+            clusters = Array.from({ length: k }, () => ({ points: [] }));
+
+            const currentAssignments = [];
+            for (const point of points) {
+                let minDist = Infinity;
+                let nearestCluster = 0;
+
+                for (let i = 0; i < centroids.length; i++) {
+                    const dist = this.calculateDistance(
+                        point.lat, point.lng,
+                        centroids[i].lat, centroids[i].lng
+                    );
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearestCluster = i;
+                    }
+                }
+
+                clusters[nearestCluster].points.push(point);
+                currentAssignments.push(nearestCluster);
+            }
+
+            // Check for convergence
+            if (JSON.stringify(currentAssignments) === JSON.stringify(previousAssignments)) {
+                console.log(`K-Means converged after ${iteration + 1} iterations`);
+                break;
+            }
+            previousAssignments = currentAssignments;
+
+            // Step 2: Update centroids
+            for (let i = 0; i < k; i++) {
+                if (clusters[i].points.length > 0) {
+                    const sumLat = clusters[i].points.reduce((sum, p) => sum + p.lat, 0);
+                    const sumLng = clusters[i].points.reduce((sum, p) => sum + p.lng, 0);
+                    centroids[i] = {
+                        lat: sumLat / clusters[i].points.length,
+                        lng: sumLng / clusters[i].points.length
+                    };
+                }
+            }
+        }
+
+        // Add centroids to cluster objects
+        for (let i = 0; i < k; i++) {
+            clusters[i].centroid = centroids[i];
+        }
+
+        // Filter out empty clusters
+        return clusters.filter(c => c.points.length > 0);
+    }
+
+    /**
+     * K-Means++ initialization - choose initial centroids spread apart
+     */
+    initializeCentroidsKMeansPlusPlus(points, k) {
+        const centroids = [];
+
+        // First centroid: random point
+        const firstIndex = Math.floor(Math.random() * points.length);
+        centroids.push({ lat: points[firstIndex].lat, lng: points[firstIndex].lng });
+
+        // Remaining centroids: weighted probability based on distance
+        while (centroids.length < k) {
+            const distances = points.map(point => {
+                let minDist = Infinity;
+                for (const centroid of centroids) {
+                    const dist = this.calculateDistance(point.lat, point.lng, centroid.lat, centroid.lng);
+                    minDist = Math.min(minDist, dist);
+                }
+                return minDist * minDist; // Square for weighted probability
+            });
+
+            const totalDist = distances.reduce((sum, d) => sum + d, 0);
+            let random = Math.random() * totalDist;
+
+            for (let i = 0; i < points.length; i++) {
+                random -= distances[i];
+                if (random <= 0) {
+                    centroids.push({ lat: points[i].lat, lng: points[i].lng });
+                    break;
+                }
+            }
+        }
+
+        return centroids;
+    }
+
+    /**
+     * Determine optimal number of clusters using the Elbow Method
+     * Returns suggested K based on student count and bus count
+     */
+    calculateOptimalK(studentCount, busCount, maxStudentsPerBus = 50) {
+        // Minimum clusters = number of buses
+        // Maximum clusters = studentCount / minStudentsPerCluster
+        const minStudentsPerCluster = 3;
+        const maxK = Math.floor(studentCount / minStudentsPerCluster);
+
+        // Calculate required buses based on capacity
+        const requiredBuses = Math.ceil(studentCount / maxStudentsPerBus);
+
+        // K should be at least the number of buses, but could be more for better geographic grouping
+        // Use 1.5x buses as a good balance
+        const suggestedK = Math.min(
+            Math.max(busCount, requiredBuses, Math.ceil(busCount * 1.5)),
+            maxK
+        );
+
+        console.log(`Optimal K calculation: students=${studentCount}, buses=${busCount}, suggested K=${suggestedK}`);
+        return suggestedK;
+    }
+
+    // ==========================================
+    // INSERTION COST HEURISTIC
+    // ==========================================
+
+    /**
+     * Calculate the cost of inserting a new point into an existing route
+     * Uses the "cheapest insertion" heuristic
+     * @param {Array} route - Current route as array of {lat, lng} points
+     * @param {Object} newPoint - Point to insert {lat, lng}
+     * @param {Object} origin - Route origin {lat, lng}
+     * @param {Object} destination - Route destination {lat, lng}
+     * @returns {Object} { cost, insertIndex, newRoute }
+     */
+    calculateInsertionCost(route, newPoint, origin, destination) {
+        let bestCost = Infinity;
+        let bestIndex = 0;
+
+        // Build full path: origin -> route points -> destination
+        const fullPath = [origin, ...route, destination];
+
+        // Try inserting at each position
+        for (let i = 0; i < fullPath.length - 1; i++) {
+            const prevPoint = fullPath[i];
+            const nextPoint = fullPath[i + 1];
+
+            // Original distance between prev and next
+            const originalDist = this.calculateDistance(
+                prevPoint.lat, prevPoint.lng,
+                nextPoint.lat, nextPoint.lng
+            );
+
+            // New distance: prev -> newPoint -> next
+            const distToNew = this.calculateDistance(
+                prevPoint.lat, prevPoint.lng,
+                newPoint.lat, newPoint.lng
+            );
+            const distFromNew = this.calculateDistance(
+                newPoint.lat, newPoint.lng,
+                nextPoint.lat, nextPoint.lng
+            );
+
+            const detour = (distToNew + distFromNew) - originalDist;
+
+            if (detour < bestCost) {
+                bestCost = detour;
+                bestIndex = i; // Insert after position i in route (0 = after origin)
+            }
+        }
+
+        // Build the new route with the point inserted
+        const newRoute = [...route];
+        newRoute.splice(bestIndex, 0, newPoint);
+
+        return {
+            cost: bestCost,
+            insertIndex: bestIndex,
+            newRoute: newRoute
+        };
+    }
+
+    /**
+     * Calculate total route distance
+     */
+    calculateTotalRouteDistance(route, origin, destination) {
+        const fullPath = [origin, ...route, destination];
+        let total = 0;
+
+        for (let i = 0; i < fullPath.length - 1; i++) {
+            total += this.calculateDistance(
+                fullPath[i].lat, fullPath[i].lng,
+                fullPath[i + 1].lat, fullPath[i + 1].lng
+            );
+        }
+
+        return total;
+    }
+
+    /**
+     * Estimate route time based on distance (rough estimate)
+     * Assumes average speed of 40 km/h for urban/suburban routes
+     */
+    estimateRouteTimeMinutes(distanceKm, numStops = 0) {
+        const avgSpeedKmh = 40;
+        const stopTimeMinutes = 2; // Time per stop
+
+        const driveTimeMinutes = (distanceKm / avgSpeedKmh) * 60;
+        const totalStopTime = numStops * stopTimeMinutes;
+
+        return driveTimeMinutes + totalStopTime;
+    }
+
+    // ==========================================
+    // TIME WINDOW CONSTRAINTS
+    // ==========================================
+
+    /**
+     * Check if adding a student violates time constraints
+     * @param {Array} route - Current route
+     * @param {Object} newPoint - Point to add
+     * @param {Object} origin - Route origin
+     * @param {Object} destination - Route destination
+     * @param {Object} constraints - Time constraints
+     * @returns {Object} { valid, reason, estimatedTime }
+     */
+    checkTimeConstraints(route, newPoint, origin, destination, constraints = {}) {
+        const {
+            maxRideTimeMinutes = 60,      // Max time any student spends on bus
+            maxTotalRouteMinutes = 90,    // Max total route time
+            schoolStartTime = null        // Optional: school start time
+        } = constraints;
+
+        // Calculate insertion
+        const insertion = this.calculateInsertionCost(route, newPoint, origin, destination);
+
+        // Calculate new total route distance
+        const newTotalDistance = this.calculateTotalRouteDistance(
+            insertion.newRoute, origin, destination
+        );
+
+        // Estimate new route time
+        const newRouteTime = this.estimateRouteTimeMinutes(
+            newTotalDistance, insertion.newRoute.length
+        );
+
+        // Check total route time
+        if (newRouteTime > maxTotalRouteMinutes) {
+            return {
+                valid: false,
+                reason: `זמן מסלול כולל (${newRouteTime.toFixed(0)} דק') חורג מהמקסימום (${maxTotalRouteMinutes} דק')`,
+                estimatedTime: newRouteTime
+            };
+        }
+
+        // Check max ride time for first student
+        // First student rides the entire route, so their time = total route time
+        if (newRouteTime > maxRideTimeMinutes && insertion.newRoute.length > 1) {
+            return {
+                valid: false,
+                reason: `זמן נסיעה לתלמיד ראשון (${newRouteTime.toFixed(0)} דק') חורג מהמקסימום (${maxRideTimeMinutes} דק')`,
+                estimatedTime: newRouteTime
+            };
+        }
+
+        return {
+            valid: true,
+            reason: null,
+            estimatedTime: newRouteTime,
+            insertion: insertion
+        };
+    }
+
+    // ==========================================
+    // SMART BATCH ASSIGNMENT ALGORITHM (V2)
+    // ==========================================
+
+    /**
+     * Smart batch assignment V2 - uses K-Means clustering and insertion heuristic
+     *
+     * Algorithm:
+     * 1. Geocode all students
+     * 2. Use K-Means to create geographic clusters
+     * 3. Match clusters to buses based on route alignment
+     * 4. Within each cluster, use insertion heuristic to build optimal route
+     * 5. Validate time constraints
+     */
+    async smartBatchAssignmentV2(students, buses, progressCallback = null, constraints = {}) {
+        const MAX_BUS_CAPACITY = constraints.maxBusCapacity || 50;
+        const MAX_RIDE_TIME = constraints.maxRideTimeMinutes || 60;
+        const MAX_ROUTE_TIME = constraints.maxTotalRouteMinutes || 90;
 
         if (!this.isReady()) {
             console.log('Maps not ready for smart assignment');
@@ -1333,166 +1625,273 @@ class MapsService {
             return null;
         }
 
-        console.log(`Starting smart batch assignment for ${students.length} students across ${buses.length} buses`);
+        console.log(`=== SMART BATCH ASSIGNMENT V2 ===`);
+        console.log(`Students: ${students.length}, Buses: ${buses.length}`);
+        console.log(`Constraints: maxCapacity=${MAX_BUS_CAPACITY}, maxRideTime=${MAX_RIDE_TIME}min, maxRouteTime=${MAX_ROUTE_TIME}min`);
 
-        // ========== PHASE 1: Geocode all students and group by location ==========
-        if (progressCallback) progressCallback('שלב 1: איסוף מיקומי תלמידים...');
+        // ========== PHASE 1: Geocode all students ==========
+        if (progressCallback) progressCallback('שלב 1: מיקום תלמידים...');
 
-        const studentLocations = new Map(); // address -> { coords, students[] }
-
+        const studentPoints = [];
         for (const student of students) {
             if (!student.address) continue;
 
             const coords = await this.geocodeAddress(student.address);
-            if (!coords) {
-                console.log(`Could not geocode address: ${student.address}`);
-                continue;
-            }
-
-            // Check if this location is close to an existing one
-            let foundGroup = null;
-            for (const [existingAddress, group] of studentLocations) {
-                const dist = this.calculateDistance(
-                    coords.lat, coords.lng,
-                    group.coords.lat, group.coords.lng
-                );
-                if (dist < PROXIMITY_THRESHOLD_KM) {
-                    foundGroup = existingAddress;
-                    break;
-                }
-            }
-
-            if (foundGroup) {
-                studentLocations.get(foundGroup).students.push(student);
-            } else {
-                studentLocations.set(student.address, {
-                    coords: coords,
-                    students: [student],
+            if (coords) {
+                studentPoints.push({
+                    lat: coords.lat,
+                    lng: coords.lng,
+                    student: student,
                     address: student.address
                 });
             }
         }
 
-        console.log(`Grouped ${students.length} students into ${studentLocations.size} location groups`);
+        console.log(`Geocoded ${studentPoints.length}/${students.length} students`);
 
-        // ========== PHASE 2: Geocode bus endpoints and prepare bus data ==========
-        if (progressCallback) progressCallback('שלב 2: חישוב מסלולי אוטובוסים...');
+        // ========== PHASE 2: Geocode bus endpoints ==========
+        if (progressCallback) progressCallback('שלב 2: מיקום מסלולי אוטובוסים...');
 
         const busData = [];
         for (const bus of buses) {
             const startCoords = bus.startLocation ? await this.geocodeAddress(bus.startLocation) : null;
             const endCoords = bus.endLocation ? await this.geocodeAddress(bus.endLocation) : null;
 
-            busData.push({
-                bus: bus,
-                startCoords: startCoords,
-                endCoords: endCoords,
-                assignedStudents: [],
-                assignedGroups: []
+            if (startCoords && endCoords) {
+                busData.push({
+                    bus: bus,
+                    origin: startCoords,
+                    destination: endCoords,
+                    route: [],           // Current route points
+                    assignedStudents: [],
+                    totalDistance: 0,
+                    estimatedTime: 0
+                });
+            }
+        }
+
+        console.log(`Prepared ${busData.length} buses with valid routes`);
+
+        // ========== PHASE 3: K-Means Clustering ==========
+        if (progressCallback) progressCallback('שלב 3: קיבוץ גיאוגרפי (K-Means)...');
+
+        const optimalK = this.calculateOptimalK(studentPoints.length, busData.length, MAX_BUS_CAPACITY);
+        const clusters = this.kMeansClustering(studentPoints, optimalK);
+
+        console.log(`Created ${clusters.length} geographic clusters:`);
+        clusters.forEach((c, i) => {
+            console.log(`  Cluster ${i + 1}: ${c.points.length} students at (${c.centroid.lat.toFixed(4)}, ${c.centroid.lng.toFixed(4)})`);
+        });
+
+        // ========== PHASE 4: Match clusters to buses ==========
+        if (progressCallback) progressCallback('שלב 4: התאמת קבוצות לאוטובוסים...');
+
+        // Calculate affinity between each cluster and each bus
+        for (const cluster of clusters) {
+            cluster.busAffinities = busData.map(bd => {
+                const distToRoute = this.calculateDistanceToRouteLine(
+                    cluster.centroid, bd.origin, bd.destination
+                );
+                const onDirection = this.isOnRouteDirection(cluster.centroid, bd.origin, bd.destination);
+
+                return {
+                    busId: bd.bus.id,
+                    busName: bd.bus.name,
+                    distToRoute: distToRoute,
+                    onDirection: onDirection,
+                    score: distToRoute + (onDirection ? 0 : 15) // Penalty for wrong direction
+                };
+            });
+
+            // Sort by best affinity (lowest score)
+            cluster.busAffinities.sort((a, b) => a.score - b.score);
+        }
+
+        // Sort clusters by size (largest first) and distance to best bus
+        clusters.sort((a, b) => {
+            // Prioritize larger clusters
+            const sizeDiff = b.points.length - a.points.length;
+            if (Math.abs(sizeDiff) > 2) return sizeDiff;
+            // Then by best affinity score
+            return a.busAffinities[0].score - b.busAffinities[0].score;
+        });
+
+        // ========== PHASE 5: Assign clusters using insertion heuristic ==========
+        if (progressCallback) progressCallback('שלב 5: שיוך אופטימלי עם עלות הכנסה...');
+
+        const assignments = new Map();
+        for (const bd of busData) {
+            assignments.set(bd.bus.id, {
+                bus: bd,
+                students: [],
+                route: []
             });
         }
 
-        // ========== PHASE 3: Calculate affinity scores for each location-group to each bus ==========
-        if (progressCallback) progressCallback('שלב 3: חישוב התאמות...');
+        let unassignedStudents = [];
 
-        const locationGroups = Array.from(studentLocations.values());
+        for (const cluster of clusters) {
+            let clusterAssigned = false;
 
-        // Calculate scores for each group to each bus
-        for (const group of locationGroups) {
-            group.busScores = [];
-
-            for (const bd of busData) {
-                const score = this.calculateGroupBusAffinity(group, bd);
-                group.busScores.push({
-                    busId: bd.bus.id,
-                    busName: bd.bus.name,
-                    score: score.total,
-                    details: score
-                });
-            }
-
-            // Sort by best score (lowest is better)
-            group.busScores.sort((a, b) => a.score - b.score);
-        }
-
-        // ========== PHASE 4: Assign groups to buses (largest groups first) ==========
-        if (progressCallback) progressCallback('שלב 4: שיוך קבוצות לאוטובוסים...');
-
-        // Sort groups by size (largest first) - big groups are harder to place
-        locationGroups.sort((a, b) => b.students.length - a.students.length);
-
-        const assignments = new Map(); // busId -> students[]
-        for (const bd of busData) {
-            assignments.set(bd.bus.id, []);
-        }
-
-        for (const group of locationGroups) {
-            let assigned = false;
-
-            // Try to assign to best matching bus that has capacity
-            for (const busScore of group.busScores) {
-                const currentCount = assignments.get(busScore.busId).length;
-                const wouldBeCount = currentCount + group.students.length;
+            // Try to assign entire cluster to best matching bus
+            for (const affinity of cluster.busAffinities) {
+                const assignment = assignments.get(affinity.busId);
+                const wouldBeCount = assignment.students.length + cluster.points.length;
 
                 if (wouldBeCount <= MAX_BUS_CAPACITY) {
-                    // Assign all students in this group to this bus
-                    assignments.get(busScore.busId).push(...group.students);
+                    // Use insertion heuristic to add cluster points optimally
+                    const studentsToAdd = [...cluster.points];
 
-                    console.log(`Assigned ${group.students.length} students from "${group.address}" to "${busScore.busName}" ` +
-                        `(score: ${busScore.score.toFixed(2)}, capacity: ${wouldBeCount}/${MAX_BUS_CAPACITY})`);
+                    // Sort cluster students by distance to route for better insertion order
+                    studentsToAdd.sort((a, b) => {
+                        const distA = this.calculateDistanceToRouteLine(a, assignment.bus.origin, assignment.bus.destination);
+                        const distB = this.calculateDistanceToRouteLine(b, assignment.bus.origin, assignment.bus.destination);
+                        return distA - distB;
+                    });
 
-                    assigned = true;
-                    break;
-                }
-            }
+                    let allValid = true;
+                    const tempRoute = [...assignment.route];
+                    const tempStudents = [...assignment.students];
 
-            if (!assigned) {
-                // Could not assign - all buses full or would exceed capacity
-                // Try to split the group
-                console.log(`Warning: Could not assign group "${group.address}" (${group.students.length} students) - attempting split`);
+                    for (const point of studentsToAdd) {
+                        // Check time constraints before adding
+                        const timeCheck = this.checkTimeConstraints(
+                            tempRoute,
+                            point,
+                            assignment.bus.origin,
+                            assignment.bus.destination,
+                            { maxRideTimeMinutes: MAX_RIDE_TIME, maxTotalRouteMinutes: MAX_ROUTE_TIME }
+                        );
 
-                for (const student of group.students) {
-                    for (const busScore of group.busScores) {
-                        const currentCount = assignments.get(busScore.busId).length;
-                        if (currentCount < MAX_BUS_CAPACITY) {
-                            assignments.get(busScore.busId).push(student);
+                        if (timeCheck.valid) {
+                            tempRoute.splice(timeCheck.insertion.insertIndex, 0, point);
+                            tempStudents.push(point.student);
+                        } else {
+                            console.log(`Time constraint violated for student in cluster: ${timeCheck.reason}`);
+                            allValid = false;
                             break;
                         }
                     }
+
+                    if (allValid || tempStudents.length > assignment.students.length) {
+                        // Accept the assignment (full or partial)
+                        assignment.route = tempRoute;
+                        assignment.students = tempStudents;
+
+                        const addedCount = tempStudents.length - (assignment.students.length - studentsToAdd.length);
+                        console.log(`Assigned ${studentsToAdd.length} students from cluster to "${affinity.busName}" ` +
+                            `(total: ${assignment.students.length}/${MAX_BUS_CAPACITY})`);
+
+                        // Mark unassigned students from this cluster
+                        if (!allValid) {
+                            const assignedIds = new Set(tempStudents.map(s => s.id));
+                            for (const point of studentsToAdd) {
+                                if (!assignedIds.has(point.student.id)) {
+                                    unassignedStudents.push(point);
+                                }
+                            }
+                        }
+
+                        clusterAssigned = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!clusterAssigned) {
+                // Could not assign cluster - add all to unassigned
+                console.log(`Could not assign cluster of ${cluster.points.length} students`);
+                unassignedStudents.push(...cluster.points);
+            }
+        }
+
+        // ========== PHASE 6: Handle unassigned students ==========
+        if (progressCallback) progressCallback('שלב 6: טיפול בתלמידים שלא שובצו...');
+
+        if (unassignedStudents.length > 0) {
+            console.log(`Attempting to place ${unassignedStudents.length} unassigned students...`);
+
+            for (const point of unassignedStudents) {
+                let placed = false;
+
+                // Find best bus with capacity
+                let bestBus = null;
+                let bestCost = Infinity;
+
+                for (const [busId, assignment] of assignments) {
+                    if (assignment.students.length >= MAX_BUS_CAPACITY) continue;
+
+                    const insertion = this.calculateInsertionCost(
+                        assignment.route,
+                        point,
+                        assignment.bus.origin,
+                        assignment.bus.destination
+                    );
+
+                    if (insertion.cost < bestCost) {
+                        bestCost = insertion.cost;
+                        bestBus = assignment;
+                    }
+                }
+
+                if (bestBus) {
+                    const insertion = this.calculateInsertionCost(
+                        bestBus.route,
+                        point,
+                        bestBus.bus.origin,
+                        bestBus.bus.destination
+                    );
+
+                    bestBus.route = insertion.newRoute;
+                    bestBus.students.push(point.student);
+                    placed = true;
+                }
+
+                if (!placed) {
+                    console.warn(`Could not place student: ${point.student.firstName} ${point.student.lastName}`);
                 }
             }
         }
 
-        // ========== PHASE 5: Balance if needed ==========
-        if (progressCallback) progressCallback('שלב 5: איזון עומסים...');
-
-        // Check if any bus is significantly more loaded than others
-        const busLoads = busData.map(bd => ({
-            busId: bd.bus.id,
-            busName: bd.bus.name,
-            count: assignments.get(bd.bus.id).length
-        }));
-
-        console.log('Bus loads after initial assignment:', busLoads);
-
-        // ========== PHASE 6: Return results ==========
-        if (progressCallback) progressCallback('שלב 6: סיום...');
+        // ========== PHASE 7: Calculate final statistics ==========
+        if (progressCallback) progressCallback('שלב 7: סיכום...');
 
         const results = {
-            assignments: assignments,
-            summary: busLoads,
-            locationGroups: locationGroups.length,
-            totalStudents: students.length
+            assignments: new Map(),
+            summary: [],
+            totalStudents: studentPoints.length,
+            clustersCreated: clusters.length,
+            unassignedCount: 0
         };
 
-        console.log('Smart batch assignment complete:', results.summary);
+        for (const [busId, assignment] of assignments) {
+            results.assignments.set(busId, assignment.students);
+
+            const totalDist = this.calculateTotalRouteDistance(
+                assignment.route,
+                assignment.bus.origin,
+                assignment.bus.destination
+            );
+            const estimatedTime = this.estimateRouteTimeMinutes(totalDist, assignment.route.length);
+
+            results.summary.push({
+                busId: busId,
+                busName: assignment.bus.bus.name,
+                count: assignment.students.length,
+                routeDistance: totalDist.toFixed(1),
+                estimatedTime: estimatedTime.toFixed(0)
+            });
+        }
+
+        console.log('=== SMART BATCH ASSIGNMENT V2 COMPLETE ===');
+        console.log('Summary:', results.summary);
 
         return results;
     }
 
     /**
      * Calculate affinity score between a location group and a bus
-     * Lower score = better match
+     * Lower score = better match (used by V1 algorithm, kept for compatibility)
      */
     calculateGroupBusAffinity(group, busData) {
         const coords = group.coords;

@@ -458,7 +458,7 @@ class StudentManager {
         }
 
         // Show confirmation dialog
-        const confirmMessage = `שיוך חכם: האם לשייך את כל ${students.length} התלמידים?\n\nהאלגוריתם החכם:\n• מקבץ תלמידים לפי מיקום\n• משייך קבוצות שלמות לאוטובוסים\n• מאזן קיבולת (מקס' 50 לאוטובוס)\n• מתחשב בכיוון המסלול`;
+        const confirmMessage = `שיוך חכם V2: האם לשייך את כל ${students.length} התלמידים?\n\nהאלגוריתם משתמש ב:\n• K-Means Clustering - קיבוץ גיאוגרפי חכם\n• Insertion Heuristic - חישוב עלות הכנסה למסלול\n• Time Windows - מגבלת זמן נסיעה (60 דק' מקסימום)\n• Capacity Limits - מגבלת קיבולת (50 תלמידים/אוטובוס)`;
 
         window.app.showConfirmModal(confirmMessage, async () => {
             try {
@@ -467,13 +467,20 @@ class StudentManager {
                     window.app.showToast(message, 'info');
                 };
 
-                showProgress('מתחיל שיוך חכם...');
+                showProgress('מתחיל שיוך חכם V2 (K-Means + Insertion Heuristic)...');
 
-                // Run smart batch assignment
-                const results = await window.mapsService.smartBatchAssignment(
+                // Run smart batch assignment V2 with constraints
+                const constraints = {
+                    maxBusCapacity: 50,
+                    maxRideTimeMinutes: 60,      // Max time any student on bus
+                    maxTotalRouteMinutes: 90     // Max total route time
+                };
+
+                const results = await window.mapsService.smartBatchAssignmentV2(
                     students,
                     buses,
-                    showProgress
+                    showProgress,
+                    constraints
                 );
 
                 if (!results) {
@@ -494,16 +501,18 @@ class StudentManager {
                     window.busManager.renderBusesList();
                 }
 
-                // Show summary
-                let summaryMessage = `שיוך חכם הושלם!\n`;
-                summaryMessage += `${results.totalStudents} תלמידים קובצו ל-${results.locationGroups} קבוצות מיקום.\n`;
-                summaryMessage += `חלוקה: `;
-                summaryMessage += results.summary.map(s => `${s.busName}: ${s.count}`).join(', ');
+                // Show summary with distance and time info
+                let summaryMessage = `שיוך חכם V2 הושלם!\n`;
+                summaryMessage += `${results.totalStudents} תלמידים קובצו ל-${results.clustersCreated} קלאסטרים גיאוגרפיים.\n\n`;
+                summaryMessage += `חלוקה:\n`;
+                summaryMessage += results.summary.map(s =>
+                    `• ${s.busName}: ${s.count} תלמידים (${s.routeDistance} ק"מ, ~${s.estimatedTime} דק')`
+                ).join('\n');
 
                 window.app.showToast(summaryMessage, 'success');
 
                 // Log detailed results
-                console.log('Smart assignment results:', results);
+                console.log('Smart assignment V2 results:', results);
 
             } catch (error) {
                 console.error('Error in smartReassignAllStudents:', error);
