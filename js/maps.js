@@ -505,6 +505,9 @@ class MapsService {
                     // Add markers for all stops
                     this.addMarkersForStops(orderedStops);
 
+                    // Validate route against time constraints
+                    const validation = this.validateRouteTimeConstraints(totalDuration, orderedStops.length);
+
                     resolve({
                         success: true,
                         stops: orderedStops,
@@ -513,9 +516,14 @@ class MapsService {
                             totalDistanceMeters: totalDistance,
                             totalDuration: this.formatDuration(totalDuration),
                             totalDurationSeconds: totalDuration,
-                            stopsCount: orderedStops.length
+                            stopsCount: orderedStops.length,
+                            // New V2 fields
+                            estimatedFirstStudentRideTime: this.formatDuration(totalDuration),
+                            maxRideTimeMinutes: Math.ceil(totalDuration / 60),
+                            validation: validation
                         },
-                        googleRoute: result
+                        googleRoute: result,
+                        warnings: validation.warnings
                     });
                 } else {
                     console.error(`DirectionsService failed with status: ${status}`);
@@ -673,11 +681,17 @@ class MapsService {
                 totalDistanceMeters: totalDistance,
                 totalDuration: this.formatDuration(totalDuration),
                 totalDurationSeconds: totalDuration,
-                stopsCount: allOrderedStops.length
+                stopsCount: allOrderedStops.length,
+                // New V2 fields
+                estimatedFirstStudentRideTime: this.formatDuration(totalDuration),
+                maxRideTimeMinutes: Math.ceil(totalDuration / 60),
+                validation: this.validateRouteTimeConstraints(totalDuration, allOrderedStops.length)
             },
             googleRoute: null, // No single route for chunked calculation
             isChunked: true,
-            chunkCount: chunks.length
+            chunkCount: chunks.length,
+            warnings: this.validateRouteTimeConstraints(totalDuration, allOrderedStops.length).warnings,
+            algorithmUsed: 'K-Means + Insertion Heuristic'
         };
     }
 
@@ -891,8 +905,126 @@ class MapsService {
         return sorted;
     }
 
-    // Create smart chunks that consider geographic clustering and optimal connection points
+    // Create smart chunks using K-Means clustering for better geographic grouping
     createSmartChunks(sortedWaypoints, chunkSize, originCoords, destCoords) {
+        if (sortedWaypoints.length <= chunkSize) {
+            return [sortedWaypoints];
+        }
+
+        // Calculate optimal number of chunks
+        const numChunks = Math.ceil(sortedWaypoints.length / chunkSize);
+
+        console.log(`Creating ${numChunks} smart chunks using K-Means clustering...`);
+
+        // Convert waypoints to points for K-Means
+        const points = sortedWaypoints.map(wp => ({
+            lat: wp.location.lat,
+            lng: wp.location.lng,
+            waypoint: wp
+        }));
+
+        // Use K-Means to cluster waypoints geographically
+        const clusters = this.kMeansClustering(points, numChunks);
+
+        // Sort clusters by distance from origin (to maintain route order)
+        clusters.sort((a, b) => {
+            const distA = this.calculateDistance(
+                originCoords.lat, originCoords.lng,
+                a.centroid.lat, a.centroid.lng
+            );
+            const distB = this.calculateDistance(
+                originCoords.lat, originCoords.lng,
+                b.centroid.lat, b.centroid.lng
+            );
+            return distA - distB;
+        });
+
+        // Convert clusters back to waypoint arrays
+        const chunks = clusters.map(cluster => {
+            // Sort points within cluster by insertion cost for optimal order
+            const clusterWaypoints = cluster.points.map(p => p.waypoint);
+            return this.orderWaypointsByInsertionCost(clusterWaypoints, originCoords, destCoords);
+        });
+
+        // Handle chunks that are too large (split them)
+        const finalChunks = [];
+        for (const chunk of chunks) {
+            if (chunk.length <= chunkSize) {
+                finalChunks.push(chunk);
+            } else {
+                // Split large cluster into smaller chunks
+                for (let i = 0; i < chunk.length; i += chunkSize) {
+                    finalChunks.push(chunk.slice(i, i + chunkSize));
+                }
+            }
+        }
+
+        console.log(`K-Means chunking created ${finalChunks.length} chunks: ${finalChunks.map(c => c.length).join(', ')} waypoints`);
+
+        return finalChunks;
+    }
+
+    // Order waypoints within a chunk using insertion cost heuristic
+    orderWaypointsByInsertionCost(waypoints, originCoords, destCoords) {
+        if (waypoints.length <= 2) return waypoints;
+
+        const ordered = [];
+        const remaining = [...waypoints];
+
+        // Start with the waypoint closest to origin
+        let minDist = Infinity;
+        let startIndex = 0;
+        for (let i = 0; i < remaining.length; i++) {
+            const dist = this.calculateDistance(
+                originCoords.lat, originCoords.lng,
+                remaining[i].location.lat, remaining[i].location.lng
+            );
+            if (dist < minDist) {
+                minDist = dist;
+                startIndex = i;
+            }
+        }
+        ordered.push(remaining.splice(startIndex, 1)[0]);
+
+        // Add remaining waypoints using insertion cost
+        while (remaining.length > 0) {
+            let bestWaypointIndex = 0;
+            let bestInsertionCost = Infinity;
+
+            // Find the waypoint with minimum insertion cost
+            for (let i = 0; i < remaining.length; i++) {
+                const wp = remaining[i];
+                const cost = this.calculateInsertionCost(
+                    ordered.map(w => w.location),
+                    wp.location,
+                    originCoords,
+                    destCoords
+                );
+
+                if (cost.cost < bestInsertionCost) {
+                    bestInsertionCost = cost.cost;
+                    bestWaypointIndex = i;
+                }
+            }
+
+            // Add the best waypoint at its optimal position
+            const bestWaypoint = remaining.splice(bestWaypointIndex, 1)[0];
+            const insertion = this.calculateInsertionCost(
+                ordered.map(w => w.location),
+                bestWaypoint.location,
+                originCoords,
+                destCoords
+            );
+
+            // Insert at the optimal position
+            ordered.splice(insertion.insertIndex, 0, bestWaypoint);
+        }
+
+        return ordered;
+    }
+
+    // Legacy smart chunks method (kept for fallback)
+    createSmartChunksLegacy(sortedWaypoints, chunkSize, originCoords, destCoords) {
         if (sortedWaypoints.length <= chunkSize) {
             return [sortedWaypoints];
         }
@@ -902,17 +1034,11 @@ class MapsService {
 
         while (remaining.length > 0) {
             if (remaining.length <= chunkSize) {
-                // Last chunk - take all remaining
                 chunks.push(remaining);
                 break;
             }
 
-            // Take up to chunkSize waypoints
-            // But try to find a natural break point based on distance gaps
             const chunk = remaining.slice(0, chunkSize);
-
-            // Find the best break point within the last few waypoints of the chunk
-            // Look for the largest distance gap which indicates a natural cluster boundary
             const breakSearchStart = Math.max(0, chunkSize - 5);
             let bestBreakIndex = chunkSize - 1;
             let maxGap = 0;
@@ -928,7 +1054,6 @@ class MapsService {
                 }
             }
 
-            // Use the break point (add 1 because we want to include the waypoint at bestBreakIndex)
             const actualChunkSize = bestBreakIndex + 1;
             chunks.push(remaining.slice(0, actualChunkSize));
             remaining = remaining.slice(actualChunkSize);
@@ -1024,6 +1149,73 @@ class MapsService {
             return `${hours} שעות ו-${minutes} דקות`;
         }
         return `${minutes} דקות`;
+    }
+
+    // Validate route against time constraints
+    validateRouteTimeConstraints(totalDurationSeconds, stopsCount, constraints = {}) {
+        const {
+            maxRideTimeMinutes = 60,        // Max time any student on bus
+            maxTotalRouteMinutes = 90,      // Max total route time
+            warningThresholdPercent = 80    // Warn when exceeding this % of max
+        } = constraints;
+
+        const totalMinutes = totalDurationSeconds / 60;
+        const warnings = [];
+        let isValid = true;
+
+        // Check total route time
+        if (totalMinutes > maxTotalRouteMinutes) {
+            isValid = false;
+            warnings.push({
+                type: 'error',
+                message: `זמן המסלול הכולל (${Math.ceil(totalMinutes)} דק') חורג מהמקסימום המותר (${maxTotalRouteMinutes} דק')`,
+                field: 'totalRouteTime',
+                value: totalMinutes,
+                limit: maxTotalRouteMinutes
+            });
+        } else if (totalMinutes > maxTotalRouteMinutes * (warningThresholdPercent / 100)) {
+            warnings.push({
+                type: 'warning',
+                message: `זמן המסלול הכולל (${Math.ceil(totalMinutes)} דק') מתקרב למקסימום (${maxTotalRouteMinutes} דק')`,
+                field: 'totalRouteTime',
+                value: totalMinutes,
+                limit: maxTotalRouteMinutes
+            });
+        }
+
+        // Check max ride time (first student rides the whole route)
+        if (totalMinutes > maxRideTimeMinutes) {
+            warnings.push({
+                type: 'warning',
+                message: `התלמיד הראשון באוטובוס יהיה על הכביש ${Math.ceil(totalMinutes)} דקות (מומלץ: עד ${maxRideTimeMinutes} דק')`,
+                field: 'maxRideTime',
+                value: totalMinutes,
+                limit: maxRideTimeMinutes
+            });
+        }
+
+        // Check stops per route (efficiency)
+        const avgTimePerStop = stopsCount > 0 ? totalMinutes / stopsCount : 0;
+        if (avgTimePerStop > 8) { // More than 8 minutes between stops on average
+            warnings.push({
+                type: 'info',
+                message: `זמן ממוצע בין תחנות: ${avgTimePerStop.toFixed(1)} דק' - ייתכן שהמסלול לא יעיל`,
+                field: 'avgTimePerStop',
+                value: avgTimePerStop,
+                limit: 8
+            });
+        }
+
+        return {
+            isValid,
+            warnings,
+            summary: {
+                totalMinutes: Math.ceil(totalMinutes),
+                maxAllowedMinutes: maxTotalRouteMinutes,
+                stopsCount,
+                avgTimePerStop: avgTimePerStop.toFixed(1)
+            }
+        };
     }
 
     // Generate Waze navigation link
