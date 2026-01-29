@@ -1084,7 +1084,57 @@ class MapsService {
         return deg * (Math.PI / 180);
     }
 
-    // Find the best bus for a student address
+    // Calculate perpendicular distance from a point to a line segment (route)
+    calculateDistanceToRouteLine(point, lineStart, lineEnd) {
+        // Vector from lineStart to lineEnd
+        const dx = lineEnd.lng - lineStart.lng;
+        const dy = lineEnd.lat - lineStart.lat;
+
+        // Length squared of line segment
+        const lengthSquared = dx * dx + dy * dy;
+
+        if (lengthSquared === 0) {
+            // Start and end are the same point
+            return this.calculateDistance(point.lat, point.lng, lineStart.lat, lineStart.lng);
+        }
+
+        // Calculate projection parameter t (clamped to [0,1] for segment)
+        const t = Math.max(0, Math.min(1,
+            ((point.lng - lineStart.lng) * dx + (point.lat - lineStart.lat) * dy) / lengthSquared
+        ));
+
+        // Find nearest point on line segment
+        const nearestLng = lineStart.lng + t * dx;
+        const nearestLat = lineStart.lat + t * dy;
+
+        // Return distance to nearest point on segment
+        return this.calculateDistance(point.lat, point.lng, nearestLat, nearestLng);
+    }
+
+    // Check if a student location is roughly in the direction of the bus route
+    isOnRouteDirection(studentCoords, startCoords, endCoords) {
+        // Calculate route direction vector
+        const routeDx = endCoords.lng - startCoords.lng;
+        const routeDy = endCoords.lat - startCoords.lat;
+
+        // Calculate student direction vector from start
+        const studentDx = studentCoords.lng - startCoords.lng;
+        const studentDy = studentCoords.lat - startCoords.lat;
+
+        // Dot product to check if generally in same direction
+        const dotProduct = routeDx * studentDx + routeDy * studentDy;
+
+        // Student is "on route direction" if dot product is positive (same general direction)
+        // or if they're very close to start
+        const distToStart = this.calculateDistance(
+            studentCoords.lat, studentCoords.lng,
+            startCoords.lat, startCoords.lng
+        );
+
+        return dotProduct >= 0 || distToStart < 5; // Within 5km of start is always OK
+    }
+
+    // Find the best bus for a student address - IMPROVED ALGORITHM
     async findBestBusForAddress(studentAddress) {
         if (!this.isReady()) {
             console.log('Maps not ready, cannot auto-assign bus');
@@ -1105,59 +1155,141 @@ class MapsService {
         }
 
         let bestBus = null;
-        let shortestDistance = Infinity;
+        let bestScore = Infinity;
+        let bestDetails = {};
 
         // Check each bus
         for (const bus of buses) {
             if (!bus.startLocation && !bus.endLocation) continue;
 
-            // Calculate distance to bus start and end points
-            let minDistToBus = Infinity;
+            // 1. Get start and end coordinates
+            let startCoords = null;
+            let endCoords = null;
 
             if (bus.startLocation) {
-                const startCoords = await this.geocodeAddress(bus.startLocation);
-                if (startCoords) {
-                    const dist = this.calculateDistance(
-                        studentCoords.lat, studentCoords.lng,
-                        startCoords.lat, startCoords.lng
-                    );
-                    minDistToBus = Math.min(minDistToBus, dist);
-                }
+                startCoords = await this.geocodeAddress(bus.startLocation);
             }
-
             if (bus.endLocation) {
-                const endCoords = await this.geocodeAddress(bus.endLocation);
-                if (endCoords) {
-                    const dist = this.calculateDistance(
-                        studentCoords.lat, studentCoords.lng,
-                        endCoords.lat, endCoords.lng
-                    );
-                    minDistToBus = Math.min(minDistToBus, dist);
-                }
+                endCoords = await this.geocodeAddress(bus.endLocation);
             }
 
-            // Also check distance to other students on this bus (cluster matching)
+            // 2. Calculate distances to start/end points
+            let distToStart = Infinity;
+            let distToEnd = Infinity;
+
+            if (startCoords) {
+                distToStart = this.calculateDistance(
+                    studentCoords.lat, studentCoords.lng,
+                    startCoords.lat, startCoords.lng
+                );
+            }
+            if (endCoords) {
+                distToEnd = this.calculateDistance(
+                    studentCoords.lat, studentCoords.lng,
+                    endCoords.lat, endCoords.lng
+                );
+            }
+
+            // 3. Calculate distance to route line (perpendicular distance)
+            let distToRouteLine = Infinity;
+            let onRouteDirection = true;
+            if (startCoords && endCoords) {
+                distToRouteLine = this.calculateDistanceToRouteLine(studentCoords, startCoords, endCoords);
+                onRouteDirection = this.isOnRouteDirection(studentCoords, startCoords, endCoords);
+            }
+
+            // 4. Check ALL unique student addresses on this bus for clustering
             const busStudents = window.studentManager ? window.studentManager.getStudentsByBus(bus.id) : [];
-            for (const existingStudent of busStudents.slice(0, 3)) { // Check first 3 students
-                const existingCoords = await this.geocodeAddress(existingStudent.address);
+
+            // Get unique addresses to reduce geocoding calls
+            const uniqueAddresses = new Set();
+            for (const existingStudent of busStudents) {
+                uniqueAddresses.add(existingStudent.address);
+            }
+
+            let nearestStudentDist = Infinity;
+            let studentsInSameArea = 0; // Count students within 10km
+
+            for (const address of uniqueAddresses) {
+                const existingCoords = await this.geocodeAddress(address);
                 if (existingCoords) {
                     const dist = this.calculateDistance(
                         studentCoords.lat, studentCoords.lng,
                         existingCoords.lat, existingCoords.lng
                     );
-                    // Weight student proximity more heavily
-                    minDistToBus = Math.min(minDistToBus, dist * 0.5);
+                    nearestStudentDist = Math.min(nearestStudentDist, dist);
+                    if (dist < 10) { // Within 10km
+                        studentsInSameArea++;
+                    }
                 }
             }
 
-            if (minDistToBus < shortestDistance) {
-                shortestDistance = minDistToBus;
+            // 5. Calculate combined score (lower is better)
+            let busScore = Infinity;
+
+            // Scoring factors:
+            // - Clustering: If there are students nearby, this is very important
+            // - Route alignment: Is the student on/near the route path?
+            // - Distance to endpoints: Fallback metric
+
+            const minEndpointDist = Math.min(distToStart, distToEnd);
+
+            if (nearestStudentDist < Infinity) {
+                // There are existing students on this bus
+
+                // Strong clustering bonus: students living close together should be on same bus
+                const clusterScore = nearestStudentDist * 0.2; // Very strong weight for clustering
+
+                // Bonus for having multiple students in the same area
+                const areaBonus = studentsInSameArea > 0 ? -studentsInSameArea * 0.5 : 0;
+
+                // Route alignment score (only if both endpoints exist)
+                let routeScore = minEndpointDist;
+                if (distToRouteLine < Infinity) {
+                    // Bonus for being close to the route line
+                    routeScore = Math.min(routeScore, distToRouteLine * 0.7);
+
+                    // Penalty if student is not in the route direction
+                    if (!onRouteDirection) {
+                        routeScore += 5; // Add 5km penalty for wrong direction
+                    }
+                }
+
+                // Combined score: prioritize clustering, then route alignment
+                busScore = Math.min(clusterScore, routeScore) + areaBonus;
+
+            } else {
+                // No students yet on this bus - use route-based scoring
+                if (distToRouteLine < Infinity) {
+                    busScore = distToRouteLine * 0.8;
+                    if (!onRouteDirection) {
+                        busScore += 5; // Penalty for wrong direction
+                    }
+                } else {
+                    busScore = minEndpointDist;
+                }
+            }
+
+            // Track best bus
+            if (busScore < bestScore) {
+                bestScore = busScore;
                 bestBus = bus;
+                bestDetails = {
+                    nearestStudentDist,
+                    studentsInSameArea,
+                    distToRouteLine,
+                    onRouteDirection,
+                    distToStart,
+                    distToEnd
+                };
             }
         }
 
         if (bestBus) {
-            console.log(`Best bus for "${studentAddress}": ${bestBus.name} (distance: ${shortestDistance.toFixed(2)} km)`);
+            console.log(`Best bus for "${studentAddress}": ${bestBus.name} (score: ${bestScore.toFixed(2)}, ` +
+                `nearest student: ${bestDetails.nearestStudentDist.toFixed(2)}km, ` +
+                `students in area: ${bestDetails.studentsInSameArea}, ` +
+                `on route: ${bestDetails.onRouteDirection})`);
         }
 
         return bestBus;
