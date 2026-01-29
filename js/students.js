@@ -35,6 +35,12 @@ class StudentManager {
             reassignAllBtn.addEventListener('click', () => this.reassignAllStudents());
         }
 
+        // Smart reassign button (batch assignment)
+        const smartReassignBtn = document.getElementById('smart-reassign-btn');
+        if (smartReassignBtn) {
+            smartReassignBtn.addEventListener('click', () => this.smartReassignAllStudents());
+        }
+
 
         // Import Excel button
         const importExcelBtn = document.getElementById('import-excel-btn');
@@ -423,6 +429,85 @@ class StudentManager {
             } catch (error) {
                 console.error('Error in reassignAllStudents:', error);
                 window.app.showToast('שגיאה בשיוך מחדש', 'error');
+            }
+        });
+    }
+
+    // Smart reassign all students using batch algorithm
+    async smartReassignAllStudents() {
+        // Check if Maps is ready
+        if (!window.mapsService.isReady()) {
+            window.app.showToast('יש להגדיר Google Maps API Key בהגדרות', 'error');
+            return;
+        }
+
+        // Get all students
+        const students = this.getAllStudents();
+
+        if (students.length === 0) {
+            window.app.showToast('אין תלמידים במערכת', 'warning');
+            return;
+        }
+
+        // Get all buses
+        const buses = window.busManager ? window.busManager.getAllBuses() : [];
+
+        if (buses.length === 0) {
+            window.app.showToast('אין אוטובוסים במערכת', 'warning');
+            return;
+        }
+
+        // Show confirmation dialog
+        const confirmMessage = `שיוך חכם: האם לשייך את כל ${students.length} התלמידים?\n\nהאלגוריתם החכם:\n• מקבץ תלמידים לפי מיקום\n• משייך קבוצות שלמות לאוטובוסים\n• מאזן קיבולת (מקס' 50 לאוטובוס)\n• מתחשב בכיוון המסלול`;
+
+        window.app.showConfirmModal(confirmMessage, async () => {
+            try {
+                // Progress callback
+                const showProgress = (message) => {
+                    window.app.showToast(message, 'info');
+                };
+
+                showProgress('מתחיל שיוך חכם...');
+
+                // Run smart batch assignment
+                const results = await window.mapsService.smartBatchAssignment(
+                    students,
+                    buses,
+                    showProgress
+                );
+
+                if (!results) {
+                    window.app.showToast('שגיאה בשיוך החכם', 'error');
+                    return;
+                }
+
+                // Apply the results
+                showProgress('מעדכן תלמידים...');
+                await window.mapsService.applySmartAssignment(results);
+
+                // Reload students
+                await this.loadStudents();
+                window.app.updateDashboardStats();
+
+                // Reload buses to update student count
+                if (window.busManager) {
+                    window.busManager.renderBusesList();
+                }
+
+                // Show summary
+                let summaryMessage = `שיוך חכם הושלם!\n`;
+                summaryMessage += `${results.totalStudents} תלמידים קובצו ל-${results.locationGroups} קבוצות מיקום.\n`;
+                summaryMessage += `חלוקה: `;
+                summaryMessage += results.summary.map(s => `${s.busName}: ${s.count}`).join(', ');
+
+                window.app.showToast(summaryMessage, 'success');
+
+                // Log detailed results
+                console.log('Smart assignment results:', results);
+
+            } catch (error) {
+                console.error('Error in smartReassignAllStudents:', error);
+                window.app.showToast('שגיאה בשיוך החכם', 'error');
             }
         });
     }

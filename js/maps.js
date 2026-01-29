@@ -1306,6 +1306,284 @@ class MapsService {
 
         return bestBus;
     }
+
+    // ==========================================
+    // SMART BATCH ASSIGNMENT ALGORITHM
+    // ==========================================
+
+    /**
+     * Smart batch assignment - assigns ALL students optimally to buses
+     * Instead of assigning one-by-one (greedy), this algorithm:
+     * 1. Groups students by location
+     * 2. Calculates affinity scores for each location-group to each bus
+     * 3. Assigns groups to buses optimally (largest groups first)
+     * 4. Balances capacity across buses
+     */
+    async smartBatchAssignment(students, buses, progressCallback = null) {
+        const MAX_BUS_CAPACITY = 50;
+        const PROXIMITY_THRESHOLD_KM = 3; // Students within 3km are grouped together
+
+        if (!this.isReady()) {
+            console.log('Maps not ready for smart assignment');
+            return null;
+        }
+
+        if (!students || students.length === 0 || !buses || buses.length === 0) {
+            console.log('No students or buses for assignment');
+            return null;
+        }
+
+        console.log(`Starting smart batch assignment for ${students.length} students across ${buses.length} buses`);
+
+        // ========== PHASE 1: Geocode all students and group by location ==========
+        if (progressCallback) progressCallback('שלב 1: איסוף מיקומי תלמידים...');
+
+        const studentLocations = new Map(); // address -> { coords, students[] }
+
+        for (const student of students) {
+            if (!student.address) continue;
+
+            const coords = await this.geocodeAddress(student.address);
+            if (!coords) {
+                console.log(`Could not geocode address: ${student.address}`);
+                continue;
+            }
+
+            // Check if this location is close to an existing one
+            let foundGroup = null;
+            for (const [existingAddress, group] of studentLocations) {
+                const dist = this.calculateDistance(
+                    coords.lat, coords.lng,
+                    group.coords.lat, group.coords.lng
+                );
+                if (dist < PROXIMITY_THRESHOLD_KM) {
+                    foundGroup = existingAddress;
+                    break;
+                }
+            }
+
+            if (foundGroup) {
+                studentLocations.get(foundGroup).students.push(student);
+            } else {
+                studentLocations.set(student.address, {
+                    coords: coords,
+                    students: [student],
+                    address: student.address
+                });
+            }
+        }
+
+        console.log(`Grouped ${students.length} students into ${studentLocations.size} location groups`);
+
+        // ========== PHASE 2: Geocode bus endpoints and prepare bus data ==========
+        if (progressCallback) progressCallback('שלב 2: חישוב מסלולי אוטובוסים...');
+
+        const busData = [];
+        for (const bus of buses) {
+            const startCoords = bus.startLocation ? await this.geocodeAddress(bus.startLocation) : null;
+            const endCoords = bus.endLocation ? await this.geocodeAddress(bus.endLocation) : null;
+
+            busData.push({
+                bus: bus,
+                startCoords: startCoords,
+                endCoords: endCoords,
+                assignedStudents: [],
+                assignedGroups: []
+            });
+        }
+
+        // ========== PHASE 3: Calculate affinity scores for each location-group to each bus ==========
+        if (progressCallback) progressCallback('שלב 3: חישוב התאמות...');
+
+        const locationGroups = Array.from(studentLocations.values());
+
+        // Calculate scores for each group to each bus
+        for (const group of locationGroups) {
+            group.busScores = [];
+
+            for (const bd of busData) {
+                const score = this.calculateGroupBusAffinity(group, bd);
+                group.busScores.push({
+                    busId: bd.bus.id,
+                    busName: bd.bus.name,
+                    score: score.total,
+                    details: score
+                });
+            }
+
+            // Sort by best score (lowest is better)
+            group.busScores.sort((a, b) => a.score - b.score);
+        }
+
+        // ========== PHASE 4: Assign groups to buses (largest groups first) ==========
+        if (progressCallback) progressCallback('שלב 4: שיוך קבוצות לאוטובוסים...');
+
+        // Sort groups by size (largest first) - big groups are harder to place
+        locationGroups.sort((a, b) => b.students.length - a.students.length);
+
+        const assignments = new Map(); // busId -> students[]
+        for (const bd of busData) {
+            assignments.set(bd.bus.id, []);
+        }
+
+        for (const group of locationGroups) {
+            let assigned = false;
+
+            // Try to assign to best matching bus that has capacity
+            for (const busScore of group.busScores) {
+                const currentCount = assignments.get(busScore.busId).length;
+                const wouldBeCount = currentCount + group.students.length;
+
+                if (wouldBeCount <= MAX_BUS_CAPACITY) {
+                    // Assign all students in this group to this bus
+                    assignments.get(busScore.busId).push(...group.students);
+
+                    console.log(`Assigned ${group.students.length} students from "${group.address}" to "${busScore.busName}" ` +
+                        `(score: ${busScore.score.toFixed(2)}, capacity: ${wouldBeCount}/${MAX_BUS_CAPACITY})`);
+
+                    assigned = true;
+                    break;
+                }
+            }
+
+            if (!assigned) {
+                // Could not assign - all buses full or would exceed capacity
+                // Try to split the group
+                console.log(`Warning: Could not assign group "${group.address}" (${group.students.length} students) - attempting split`);
+
+                for (const student of group.students) {
+                    for (const busScore of group.busScores) {
+                        const currentCount = assignments.get(busScore.busId).length;
+                        if (currentCount < MAX_BUS_CAPACITY) {
+                            assignments.get(busScore.busId).push(student);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ========== PHASE 5: Balance if needed ==========
+        if (progressCallback) progressCallback('שלב 5: איזון עומסים...');
+
+        // Check if any bus is significantly more loaded than others
+        const busLoads = busData.map(bd => ({
+            busId: bd.bus.id,
+            busName: bd.bus.name,
+            count: assignments.get(bd.bus.id).length
+        }));
+
+        console.log('Bus loads after initial assignment:', busLoads);
+
+        // ========== PHASE 6: Return results ==========
+        if (progressCallback) progressCallback('שלב 6: סיום...');
+
+        const results = {
+            assignments: assignments,
+            summary: busLoads,
+            locationGroups: locationGroups.length,
+            totalStudents: students.length
+        };
+
+        console.log('Smart batch assignment complete:', results.summary);
+
+        return results;
+    }
+
+    /**
+     * Calculate affinity score between a location group and a bus
+     * Lower score = better match
+     */
+    calculateGroupBusAffinity(group, busData) {
+        const coords = group.coords;
+        const startCoords = busData.startCoords;
+        const endCoords = busData.endCoords;
+
+        let distToStart = Infinity;
+        let distToEnd = Infinity;
+        let distToRoute = Infinity;
+        let onRouteDirection = true;
+
+        // Distance to start
+        if (startCoords) {
+            distToStart = this.calculateDistance(
+                coords.lat, coords.lng,
+                startCoords.lat, startCoords.lng
+            );
+        }
+
+        // Distance to end
+        if (endCoords) {
+            distToEnd = this.calculateDistance(
+                coords.lat, coords.lng,
+                endCoords.lat, endCoords.lng
+            );
+        }
+
+        // Distance to route line
+        if (startCoords && endCoords) {
+            distToRoute = this.calculateDistanceToRouteLine(coords, startCoords, endCoords);
+            onRouteDirection = this.isOnRouteDirection(coords, startCoords, endCoords);
+        }
+
+        // Calculate total score
+        // Prioritize: on-route > close to route > close to endpoints
+        let total = 0;
+
+        // Base: distance to nearest endpoint
+        const minEndpointDist = Math.min(distToStart, distToEnd);
+        total += minEndpointDist;
+
+        // Bonus for being close to route line
+        if (distToRoute < Infinity) {
+            total = Math.min(total, distToRoute * 1.2);
+        }
+
+        // Penalty for wrong direction
+        if (!onRouteDirection) {
+            total += 10; // 10km penalty
+        }
+
+        // Bonus for larger groups (we want big groups together)
+        // Negative bonus = lower score = better
+        total -= group.students.length * 0.1;
+
+        return {
+            total: total,
+            distToStart: distToStart,
+            distToEnd: distToEnd,
+            distToRoute: distToRoute,
+            onRouteDirection: onRouteDirection,
+            groupSize: group.students.length
+        };
+    }
+
+    /**
+     * Apply smart batch assignment results - updates student busId fields
+     */
+    async applySmartAssignment(results) {
+        if (!results || !results.assignments) {
+            console.log('No assignment results to apply');
+            return false;
+        }
+
+        let updatedCount = 0;
+
+        for (const [busId, students] of results.assignments) {
+            for (const student of students) {
+                if (student.busId !== busId) {
+                    student.busId = busId;
+                    if (window.storageService) {
+                        await window.storageService.saveStudent(student);
+                    }
+                    updatedCount++;
+                }
+            }
+        }
+
+        console.log(`Applied smart assignment: updated ${updatedCount} students`);
+        return true;
+    }
 }
 
 // Create global instance
