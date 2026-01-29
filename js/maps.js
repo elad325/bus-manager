@@ -1136,6 +1136,8 @@ class MapsService {
 
     // Find the best bus for a student address - IMPROVED ALGORITHM
     async findBestBusForAddress(studentAddress) {
+        const MAX_BUS_CAPACITY = 50; // Maximum students per bus
+
         if (!this.isReady()) {
             console.log('Maps not ready, cannot auto-assign bus');
             return null;
@@ -1161,6 +1163,13 @@ class MapsService {
         // Check each bus
         for (const bus of buses) {
             if (!bus.startLocation && !bus.endLocation) continue;
+
+            // Check bus capacity first
+            const busStudents = window.studentManager ? window.studentManager.getStudentsByBus(bus.id) : [];
+            if (busStudents.length >= MAX_BUS_CAPACITY) {
+                console.log(`Bus "${bus.name}" is full (${busStudents.length}/${MAX_BUS_CAPACITY}), skipping`);
+                continue; // Skip full buses
+            }
 
             // 1. Get start and end coordinates
             let startCoords = null;
@@ -1199,7 +1208,7 @@ class MapsService {
             }
 
             // 4. Check ALL unique student addresses on this bus for clustering
-            const busStudents = window.studentManager ? window.studentManager.getStudentsByBus(bus.id) : [];
+            // (busStudents already retrieved above for capacity check)
 
             // Get unique addresses to reduce geocoding calls
             const uniqueAddresses = new Set();
@@ -1280,13 +1289,16 @@ class MapsService {
                     distToRouteLine,
                     onRouteDirection,
                     distToStart,
-                    distToEnd
+                    distToEnd,
+                    currentCapacity: busStudents.length,
+                    maxCapacity: MAX_BUS_CAPACITY
                 };
             }
         }
 
         if (bestBus) {
             console.log(`Best bus for "${studentAddress}": ${bestBus.name} (score: ${bestScore.toFixed(2)}, ` +
+                `capacity: ${bestDetails.currentCapacity}/${bestDetails.maxCapacity}, ` +
                 `nearest student: ${bestDetails.nearestStudentDist.toFixed(2)}km, ` +
                 `students in area: ${bestDetails.studentsInSameArea}, ` +
                 `on route: ${bestDetails.onRouteDirection})`);
