@@ -13,6 +13,84 @@ class MapsService {
         this.geocodeCache = {}; // Cache for geocoding results
         this.markers = []; // Store markers for cleanup
         this.additionalRenderers = []; // Store additional DirectionsRenderers for chunked routes
+        this.distanceMatrixCache = new Map(); // Cache for distance matrix calculations
+    }
+
+    // ==========================================
+    // DISTANCE MATRIX CACHE SERVICE
+    // ==========================================
+
+    /**
+     * Get unique cache key for a pair of coordinates
+     * @param {Object} p1 - First point {lat, lng}
+     * @param {Object} p2 - Second point {lat, lng}
+     * @returns {string} Cache key
+     */
+    _getDistanceCacheKey(p1, p2) {
+        return `${p1.lat.toFixed(5)},${p1.lng.toFixed(5)}-${p2.lat.toFixed(5)},${p2.lng.toFixed(5)}`;
+    }
+
+    /**
+     * Get cached distance or calculate and cache it
+     * Uses Haversine formula for fast calculation
+     * @param {Object} p1 - First point {lat, lng}
+     * @param {Object} p2 - Second point {lat, lng}
+     * @returns {number} Distance in meters
+     */
+    getCachedDistanceMeters(p1, p2) {
+        const key = this._getDistanceCacheKey(p1, p2);
+
+        if (this.distanceMatrixCache.has(key)) {
+            return this.distanceMatrixCache.get(key);
+        }
+
+        // Calculate using Haversine (returns km, convert to meters)
+        const distKm = this.calculateDistance(p1.lat, p1.lng, p2.lat, p2.lng);
+        const distMeters = distKm * 1000;
+
+        this.distanceMatrixCache.set(key, distMeters);
+
+        // Also cache reverse direction (same distance)
+        const reverseKey = this._getDistanceCacheKey(p2, p1);
+        this.distanceMatrixCache.set(reverseKey, distMeters);
+
+        return distMeters;
+    }
+
+    /**
+     * Prefetch distance matrix for all points (warmup cache)
+     * @param {Array} points - Array of {lat, lng} objects
+     */
+    prefetchDistanceMatrix(points) {
+        const startTime = Date.now();
+        let calculated = 0;
+
+        for (let i = 0; i < points.length; i++) {
+            for (let j = i + 1; j < points.length; j++) {
+                this.getCachedDistanceMeters(points[i], points[j]);
+                calculated++;
+            }
+        }
+
+        console.log(`Distance matrix prefetch: ${calculated} pairs in ${Date.now() - startTime}ms`);
+    }
+
+    /**
+     * Clear the distance matrix cache
+     */
+    clearDistanceMatrixCache() {
+        this.distanceMatrixCache.clear();
+        console.log('Distance matrix cache cleared');
+    }
+
+    /**
+     * Get cache statistics
+     */
+    getDistanceCacheStats() {
+        return {
+            size: this.distanceMatrixCache.size,
+            memoryEstimateKB: (this.distanceMatrixCache.size * 50) / 1024 // Rough estimate
+        };
     }
 
     // Initialize Google Maps
@@ -773,6 +851,189 @@ class MapsService {
         // Fit map to show all markers
         if (allStops.length > 0) {
             this.map.fitBounds(bounds);
+        }
+    }
+
+    // ==========================================
+    // ROUTE STITCHING (UNIFIED VISUALIZATION)
+    // ==========================================
+
+    /**
+     * Stitch multiple route segments into a single unified route
+     * Solves the visual fragmentation problem with chunked routes
+     * @param {Array} routeResults - Array of route results from chunked calculation
+     * @returns {Object} Unified DirectionsResult-like object for display
+     */
+    stitchRouteSegments(routeResults) {
+        if (!routeResults || routeResults.length === 0) return null;
+
+        console.log(`Stitching ${routeResults.length} route segments...`);
+
+        // Create combined result structure
+        const combinedResult = {
+            routes: [{
+                legs: [],
+                overview_path: [],
+                bounds: null
+            }]
+        };
+
+        let totalDuration = 0;
+        let totalDistance = 0;
+        let bounds = null;
+
+        // Process each route segment
+        routeResults.forEach((segment, index) => {
+            const googleRoute = segment.route?.routes?.[0] || segment.googleRoute?.routes?.[0];
+            if (!googleRoute) {
+                console.warn(`Segment ${index} has no valid Google route data`);
+                return;
+            }
+
+            // Merge legs
+            if (googleRoute.legs) {
+                combinedResult.routes[0].legs.push(...googleRoute.legs);
+
+                // Sum distance and duration
+                googleRoute.legs.forEach(leg => {
+                    totalDuration += leg.duration?.value || 0;
+                    totalDistance += leg.distance?.value || 0;
+                });
+            }
+
+            // Merge overview_path (polyline points)
+            if (googleRoute.overview_path) {
+                combinedResult.routes[0].overview_path.push(...googleRoute.overview_path);
+            }
+
+            // Merge bounds
+            if (googleRoute.bounds) {
+                if (!bounds) {
+                    bounds = new google.maps.LatLngBounds(
+                        googleRoute.bounds.getSouthWest(),
+                        googleRoute.bounds.getNorthEast()
+                    );
+                } else {
+                    bounds.union(googleRoute.bounds);
+                }
+            }
+        });
+
+        combinedResult.routes[0].bounds = bounds;
+
+        // Add metadata
+        combinedResult.status = 'OK';
+        combinedResult.totalDistanceMeters = totalDistance;
+        combinedResult.totalDurationSeconds = totalDuration;
+        combinedResult.segmentCount = routeResults.length;
+
+        console.log(`Route stitched: ${(totalDistance / 1000).toFixed(1)}km, ${Math.round(totalDuration / 60)}min`);
+
+        return combinedResult;
+    }
+
+    /**
+     * Display a unified/stitched route on the map
+     * Creates a clean, single-color route display
+     * @param {Object} stitchedRoute - Result from stitchRouteSegments
+     * @param {Array} allStops - All stops to display as markers
+     * @param {Object} options - Display options
+     */
+    displayUnifiedRoute(stitchedRoute, allStops, options = {}) {
+        if (!this.map || !stitchedRoute) return;
+
+        const {
+            routeColor = '#4f46e5', // Indigo - professional single color
+            routeWeight = 6,
+            routeOpacity = 0.85,
+            showMarkers = true
+        } = options;
+
+        // Clear existing display
+        this.clearMapDisplay();
+
+        // Create a single polyline from the stitched path
+        if (stitchedRoute.routes[0].overview_path.length > 0) {
+            const routePolyline = new google.maps.Polyline({
+                path: stitchedRoute.routes[0].overview_path,
+                geodesic: true,
+                strokeColor: routeColor,
+                strokeWeight: routeWeight,
+                strokeOpacity: routeOpacity,
+                map: this.map
+            });
+
+            // Store for cleanup (add to markers array for simplicity)
+            this.additionalRenderers.push({
+                setMap: (map) => routePolyline.setMap(map)
+            });
+        }
+
+        // Add markers for stops
+        if (showMarkers && allStops && allStops.length > 0) {
+            const bounds = new google.maps.LatLngBounds();
+
+            allStops.forEach((stop, index) => {
+                if (!stop.location) return;
+
+                const position = new google.maps.LatLng(stop.location.lat, stop.location.lng);
+                bounds.extend(position);
+
+                // Determine marker color
+                let color;
+                if (index === 0) {
+                    color = '#22c55e'; // Green for start
+                } else if (index === allStops.length - 1) {
+                    color = '#ef4444'; // Red for end
+                } else {
+                    color = '#6366f1'; // Blue for waypoints
+                }
+
+                this.addMarker(
+                    position,
+                    String(index + 1),
+                    stop.name + ' - ' + (stop.address || ''),
+                    color
+                );
+            });
+
+            // Fit map to bounds
+            this.map.fitBounds(bounds);
+        } else if (stitchedRoute.routes[0].bounds) {
+            // Use route bounds if no stops provided
+            this.map.fitBounds(stitchedRoute.routes[0].bounds);
+        }
+
+        console.log('Unified route displayed successfully');
+    }
+
+    /**
+     * Enhanced route display that automatically stitches chunked routes
+     * Use this instead of displayChunkedRoutes for better visualization
+     * @param {Array} routeResults - Array from calculateChunkedRoute
+     * @param {Array} allStops - All stops with location data
+     */
+    displaySmartRoute(routeResults, allStops) {
+        if (!routeResults || routeResults.length === 0) {
+            console.warn('No route results to display');
+            return;
+        }
+
+        // If single segment, use standard display
+        if (routeResults.length === 1) {
+            this.displayChunkedRoutes(routeResults, allStops);
+            return;
+        }
+
+        // Multiple segments - stitch and display unified
+        const stitchedRoute = this.stitchRouteSegments(routeResults);
+
+        if (stitchedRoute) {
+            this.displayUnifiedRoute(stitchedRoute, allStops);
+        } else {
+            // Fallback to chunked display
+            console.warn('Stitching failed, falling back to chunked display');
+            this.displayChunkedRoutes(routeResults, allStops);
         }
     }
 
@@ -2214,6 +2475,399 @@ class MapsService {
     }
 
     // ==========================================
+    // GENETIC ALGORITHM OPTIMIZER (Meta-heuristic)
+    // ==========================================
+
+    /**
+     * Genetic Algorithm for VRP optimization
+     * Uses evolutionary techniques to find near-optimal solutions
+     * that can escape local minima
+     *
+     * @param {Array} studentPoints - Array of {lat, lng, student} objects
+     * @param {Array} busData - Array of {bus, origin, destination} objects
+     * @param {Object} config - GA configuration
+     * @returns {Map} Optimal assignment: busId -> [students]
+     */
+    geneticAlgorithmOptimize(studentPoints, busData, config = {}) {
+        // Configuration with defaults
+        const POPULATION_SIZE = config.populationSize || 80;
+        const GENERATIONS = config.generations || 150;
+        const MUTATION_RATE = config.mutationRate || 0.08;
+        const ELITE_SIZE = config.eliteSize || 8;
+        const MAX_CAPACITY = config.maxCapacity || 50;
+        const TOURNAMENT_SIZE = config.tournamentSize || 5;
+
+        console.log(`=== GENETIC ALGORITHM OPTIMIZER ===`);
+        console.log(`Population: ${POPULATION_SIZE}, Generations: ${GENERATIONS}, Mutation: ${MUTATION_RATE}`);
+
+        const startTime = Date.now();
+
+        // Prefetch distance matrix for performance
+        const allPoints = [
+            ...studentPoints.map(s => ({ lat: s.lat, lng: s.lng })),
+            ...busData.map(b => b.origin),
+            ...busData.map(b => b.destination)
+        ];
+        this.prefetchDistanceMatrix(allPoints);
+
+        // Create initial population
+        let population = [];
+        for (let i = 0; i < POPULATION_SIZE; i++) {
+            population.push(this._createIndividual(studentPoints, busData, MAX_CAPACITY));
+        }
+
+        // Track best solution
+        let bestFitness = Infinity;
+        let bestIndividual = null;
+        let generationsWithoutImprovement = 0;
+
+        // Evolution loop
+        for (let gen = 0; gen < GENERATIONS; gen++) {
+            // Calculate fitness for all individuals
+            const fitnessScores = population.map(individual => ({
+                individual,
+                fitness: this._calculateFitness(individual, busData, MAX_CAPACITY)
+            }));
+
+            // Sort by fitness (lower is better)
+            fitnessScores.sort((a, b) => a.fitness - b.fitness);
+
+            // Track best
+            if (fitnessScores[0].fitness < bestFitness) {
+                bestFitness = fitnessScores[0].fitness;
+                bestIndividual = this._cloneIndividual(fitnessScores[0].individual);
+                generationsWithoutImprovement = 0;
+
+                if (gen % 20 === 0 || gen < 10) {
+                    console.log(`Gen ${gen}: Best fitness = ${(bestFitness / 1000).toFixed(1)}km`);
+                }
+            } else {
+                generationsWithoutImprovement++;
+            }
+
+            // Early termination if no improvement for 30 generations
+            if (generationsWithoutImprovement > 30) {
+                console.log(`Converged at generation ${gen} (no improvement for 30 gens)`);
+                break;
+            }
+
+            // Create next generation
+            const newPopulation = [];
+
+            // Elitism: keep best individuals
+            for (let i = 0; i < ELITE_SIZE; i++) {
+                newPopulation.push(this._cloneIndividual(fitnessScores[i].individual));
+            }
+
+            // Fill rest with crossover and mutation
+            while (newPopulation.length < POPULATION_SIZE) {
+                // Tournament selection
+                const parentA = this._tournamentSelect(fitnessScores, TOURNAMENT_SIZE);
+                const parentB = this._tournamentSelect(fitnessScores, TOURNAMENT_SIZE);
+
+                // Crossover
+                let child = this._crossover(parentA, parentB, studentPoints, busData, MAX_CAPACITY);
+
+                // Mutation
+                if (Math.random() < MUTATION_RATE) {
+                    child = this._mutate(child, busData, MAX_CAPACITY);
+                }
+
+                newPopulation.push(child);
+            }
+
+            population = newPopulation;
+        }
+
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`GA Complete: Best fitness = ${(bestFitness / 1000).toFixed(1)}km in ${duration}s`);
+
+        return bestIndividual;
+    }
+
+    /**
+     * Create a random individual (chromosome)
+     * An individual is a Map: busId -> [studentPoints]
+     */
+    _createIndividual(studentPoints, busData, maxCapacity) {
+        const assignment = new Map();
+        busData.forEach(bd => assignment.set(bd.bus.id, []));
+
+        // Shuffle students for randomness
+        const shuffled = [...studentPoints].sort(() => Math.random() - 0.5);
+
+        // Assign students to buses
+        for (const student of shuffled) {
+            // Find buses with available capacity
+            const availableBuses = busData.filter(bd =>
+                assignment.get(bd.bus.id).length < maxCapacity
+            );
+
+            if (availableBuses.length > 0) {
+                // Weighted random selection - prefer buses closer to student
+                const weights = availableBuses.map(bd => {
+                    const dist = this.getCachedDistanceMeters(
+                        { lat: student.lat, lng: student.lng },
+                        bd.origin
+                    );
+                    return 1 / (dist + 1000); // Inverse distance with offset
+                });
+
+                const totalWeight = weights.reduce((a, b) => a + b, 0);
+                let random = Math.random() * totalWeight;
+
+                let selectedBus = availableBuses[0];
+                for (let i = 0; i < availableBuses.length; i++) {
+                    random -= weights[i];
+                    if (random <= 0) {
+                        selectedBus = availableBuses[i];
+                        break;
+                    }
+                }
+
+                assignment.get(selectedBus.bus.id).push(student);
+            }
+        }
+
+        return assignment;
+    }
+
+    /**
+     * Calculate fitness (total distance) for an individual
+     * Lower fitness = better solution
+     */
+    _calculateFitness(individual, busData, maxCapacity) {
+        let totalDistance = 0;
+        let penaltyMultiplier = 1;
+
+        for (const bd of busData) {
+            const students = individual.get(bd.bus.id);
+            if (students.length === 0) continue;
+
+            // Capacity penalty
+            if (students.length > maxCapacity) {
+                penaltyMultiplier += (students.length - maxCapacity) * 0.5;
+            }
+
+            // Calculate route distance using nearest neighbor heuristic
+            const routeDist = this._calculateRouteDistanceNN(students, bd.origin, bd.destination);
+            totalDistance += routeDist;
+        }
+
+        return totalDistance * penaltyMultiplier;
+    }
+
+    /**
+     * Calculate route distance using Nearest Neighbor heuristic
+     * Fast approximation for fitness evaluation
+     */
+    _calculateRouteDistanceNN(students, origin, destination) {
+        if (students.length === 0) return 0;
+
+        let distance = 0;
+        let current = origin;
+        const unvisited = [...students];
+
+        while (unvisited.length > 0) {
+            let nearestIdx = 0;
+            let nearestDist = Infinity;
+
+            for (let i = 0; i < unvisited.length; i++) {
+                const dist = this.getCachedDistanceMeters(current, {
+                    lat: unvisited[i].lat,
+                    lng: unvisited[i].lng
+                });
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearestIdx = i;
+                }
+            }
+
+            distance += nearestDist;
+            current = { lat: unvisited[nearestIdx].lat, lng: unvisited[nearestIdx].lng };
+            unvisited.splice(nearestIdx, 1);
+        }
+
+        // Add distance to destination
+        distance += this.getCachedDistanceMeters(current, destination);
+
+        return distance;
+    }
+
+    /**
+     * Tournament selection - pick best from random subset
+     */
+    _tournamentSelect(fitnessScores, tournamentSize) {
+        const tournament = [];
+        for (let i = 0; i < tournamentSize; i++) {
+            const idx = Math.floor(Math.random() * fitnessScores.length);
+            tournament.push(fitnessScores[idx]);
+        }
+        tournament.sort((a, b) => a.fitness - b.fitness);
+        return tournament[0].individual;
+    }
+
+    /**
+     * Crossover - create child from two parents
+     * Uses route-based crossover to preserve good routes
+     */
+    _crossover(parentA, parentB, studentPoints, busData, maxCapacity) {
+        const child = new Map();
+        busData.forEach(bd => child.set(bd.bus.id, []));
+
+        const assignedStudentIds = new Set();
+
+        // Step 1: Take complete route from random bus in parent A
+        const busIds = Array.from(parentA.keys());
+        const randomBusId = busIds[Math.floor(Math.random() * busIds.length)];
+        const studentsFromA = parentA.get(randomBusId);
+
+        for (const student of studentsFromA) {
+            if (!assignedStudentIds.has(student.student.id)) {
+                child.get(randomBusId).push(student);
+                assignedStudentIds.add(student.student.id);
+            }
+        }
+
+        // Step 2: Fill remaining students from parent B's ordering
+        for (const [busId, students] of parentB) {
+            for (const student of students) {
+                if (!assignedStudentIds.has(student.student.id)) {
+                    // Try to assign to same bus as in parent B
+                    const targetBus = child.get(busId);
+                    if (targetBus && targetBus.length < maxCapacity) {
+                        targetBus.push(student);
+                        assignedStudentIds.add(student.student.id);
+                    }
+                }
+            }
+        }
+
+        // Step 3: Handle any remaining unassigned students
+        for (const student of studentPoints) {
+            if (!assignedStudentIds.has(student.student.id)) {
+                // Find bus with capacity
+                for (const bd of busData) {
+                    const busStudents = child.get(bd.bus.id);
+                    if (busStudents.length < maxCapacity) {
+                        busStudents.push(student);
+                        break;
+                    }
+                }
+            }
+        }
+
+        return child;
+    }
+
+    /**
+     * Mutation - apply random changes to individual
+     */
+    _mutate(individual, busData, maxCapacity) {
+        const mutationType = Math.random();
+
+        if (mutationType < 0.5) {
+            // Swap mutation: swap students between two buses
+            return this._swapMutation(individual, busData, maxCapacity);
+        } else {
+            // Relocate mutation: move student from one bus to another
+            return this._relocateMutation(individual, busData, maxCapacity);
+        }
+    }
+
+    /**
+     * Swap mutation - swap students between buses
+     */
+    _swapMutation(individual, busData, maxCapacity) {
+        const busIds = Array.from(individual.keys());
+        const nonEmptyBuses = busIds.filter(id => individual.get(id).length > 0);
+
+        if (nonEmptyBuses.length < 2) return individual;
+
+        // Pick two random buses
+        const idx1 = Math.floor(Math.random() * nonEmptyBuses.length);
+        let idx2 = Math.floor(Math.random() * nonEmptyBuses.length);
+        while (idx2 === idx1) idx2 = Math.floor(Math.random() * nonEmptyBuses.length);
+
+        const bus1 = nonEmptyBuses[idx1];
+        const bus2 = nonEmptyBuses[idx2];
+
+        const students1 = individual.get(bus1);
+        const students2 = individual.get(bus2);
+
+        if (students1.length > 0 && students2.length > 0) {
+            // Swap random students
+            const studentIdx1 = Math.floor(Math.random() * students1.length);
+            const studentIdx2 = Math.floor(Math.random() * students2.length);
+
+            const temp = students1[studentIdx1];
+            students1[studentIdx1] = students2[studentIdx2];
+            students2[studentIdx2] = temp;
+        }
+
+        return individual;
+    }
+
+    /**
+     * Relocate mutation - move student to different bus
+     */
+    _relocateMutation(individual, busData, maxCapacity) {
+        const busIds = Array.from(individual.keys());
+        const nonEmptyBuses = busIds.filter(id => individual.get(id).length > 1); // Keep at least 1
+
+        if (nonEmptyBuses.length === 0) return individual;
+
+        // Pick source bus
+        const sourceBusId = nonEmptyBuses[Math.floor(Math.random() * nonEmptyBuses.length)];
+        const sourceStudents = individual.get(sourceBusId);
+
+        // Find target bus with capacity
+        const targetBuses = busIds.filter(id =>
+            id !== sourceBusId && individual.get(id).length < maxCapacity
+        );
+
+        if (targetBuses.length === 0) return individual;
+
+        const targetBusId = targetBuses[Math.floor(Math.random() * targetBuses.length)];
+
+        // Move random student
+        const studentIdx = Math.floor(Math.random() * sourceStudents.length);
+        const student = sourceStudents.splice(studentIdx, 1)[0];
+        individual.get(targetBusId).push(student);
+
+        return individual;
+    }
+
+    /**
+     * Clone an individual (deep copy)
+     */
+    _cloneIndividual(individual) {
+        const clone = new Map();
+        for (const [busId, students] of individual) {
+            clone.set(busId, [...students]);
+        }
+        return clone;
+    }
+
+    /**
+     * Convert GA result to standard assignment format
+     */
+    _convertGAResultToAssignment(gaResult, busData) {
+        const assignments = new Map();
+
+        for (const bd of busData) {
+            const students = gaResult.get(bd.bus.id) || [];
+            assignments.set(bd.bus.id, {
+                bus: bd,
+                students: students.map(s => s.student),
+                route: students.map(s => ({ lat: s.lat, lng: s.lng, student: s.student }))
+            });
+        }
+
+        return assignments;
+    }
+
+    // ==========================================
     // SMART BATCH ASSIGNMENT ALGORITHM (V3)
     // ==========================================
 
@@ -2555,6 +3209,221 @@ class MapsService {
 
         const duration = ((Date.now() - startTime) / 1000).toFixed(1);
         console.log(`=== SMART BATCH ASSIGNMENT V3 COMPLETE (${duration}s) ===`);
+        console.log('Summary:', results.summary);
+        console.log('Quality Metrics:', results.qualityMetrics);
+
+        return results;
+    }
+
+    // ==========================================
+    // SMART BATCH ASSIGNMENT ALGORITHM (V4)
+    // Uses Genetic Algorithm for global optimization
+    // ==========================================
+
+    /**
+     * Smart batch assignment V4 - Hybrid Genetic Algorithm + Local Search
+     *
+     * This is the most advanced algorithm combining:
+     * 1. Genetic Algorithm for global optimization (escapes local minima)
+     * 2. K-Means for seeding good initial population
+     * 3. 2-opt and inter-bus optimization for solution refinement
+     * 4. Quality metrics and efficiency scoring
+     *
+     * Use this for large-scale problems (50+ students) where V3 might get stuck
+     *
+     * @param {Array} students - All students to assign
+     * @param {Array} buses - Available buses
+     * @param {Function} progressCallback - Progress update callback
+     * @param {Object} constraints - Assignment constraints
+     * @returns {Object} Assignment results with quality metrics
+     */
+    async smartBatchAssignmentV4(students, buses, progressCallback = null, constraints = {}) {
+        const MAX_BUS_CAPACITY = constraints.maxBusCapacity || 50;
+        const MAX_RIDE_TIME = constraints.maxRideTimeMinutes || 60;
+        const MAX_ROUTE_TIME = constraints.maxTotalRouteMinutes || 90;
+
+        // GA configuration based on problem size
+        const GA_CONFIG = {
+            populationSize: Math.min(100, Math.max(40, students.length)),
+            generations: Math.min(200, Math.max(80, students.length * 2)),
+            mutationRate: 0.08,
+            eliteSize: Math.max(5, Math.floor(students.length / 20)),
+            maxCapacity: MAX_BUS_CAPACITY,
+            tournamentSize: 5
+        };
+
+        if (!this.isReady()) {
+            console.log('Maps not ready for smart assignment');
+            return null;
+        }
+
+        if (!students || students.length === 0 || !buses || buses.length === 0) {
+            console.log('No students or buses for assignment');
+            return null;
+        }
+
+        console.log(`=== SMART BATCH ASSIGNMENT V4 (GENETIC ALGORITHM) ===`);
+        console.log(`Students: ${students.length}, Buses: ${buses.length}`);
+        console.log(`GA Config: pop=${GA_CONFIG.populationSize}, gen=${GA_CONFIG.generations}`);
+
+        const startTime = Date.now();
+
+        // ========== PHASE 1: Geocode all students ==========
+        if (progressCallback) progressCallback('שלב 1/6: מיקום תלמידים...');
+
+        const studentPoints = [];
+        for (const student of students) {
+            if (!student.address) continue;
+
+            const coords = await this.geocodeAddress(student.address);
+            if (coords) {
+                studentPoints.push({
+                    lat: coords.lat,
+                    lng: coords.lng,
+                    student: student,
+                    address: student.address
+                });
+            }
+        }
+
+        console.log(`Geocoded ${studentPoints.length}/${students.length} students`);
+
+        // ========== PHASE 2: Geocode bus endpoints ==========
+        if (progressCallback) progressCallback('שלב 2/6: מיקום מסלולי אוטובוסים...');
+
+        const busData = [];
+        for (const bus of buses) {
+            const startCoords = bus.startLocation ? await this.geocodeAddress(bus.startLocation) : null;
+            const endCoords = bus.endLocation ? await this.geocodeAddress(bus.endLocation) : null;
+
+            if (startCoords && endCoords) {
+                busData.push({
+                    bus: bus,
+                    origin: startCoords,
+                    destination: endCoords
+                });
+            }
+        }
+
+        console.log(`Prepared ${busData.length} buses with valid routes`);
+
+        if (busData.length === 0 || studentPoints.length === 0) {
+            console.log('Cannot proceed: no valid buses or students');
+            return null;
+        }
+
+        // ========== PHASE 3: Run Genetic Algorithm ==========
+        if (progressCallback) progressCallback('שלב 3/6: אופטימיזציה גנטית (זה עשוי לקחת זמן)...');
+
+        const gaResult = this.geneticAlgorithmOptimize(studentPoints, busData, GA_CONFIG);
+
+        if (!gaResult) {
+            console.log('Genetic algorithm failed, falling back to V3');
+            return this.smartBatchAssignmentV3(students, buses, progressCallback, constraints);
+        }
+
+        // ========== PHASE 4: Convert GA result to assignments ==========
+        if (progressCallback) progressCallback('שלב 4/6: עיבוד תוצאות...');
+
+        const assignments = this._convertGAResultToAssignment(gaResult, busData);
+
+        // ========== PHASE 5: Local search refinement (2-opt + swaps) ==========
+        if (progressCallback) progressCallback('שלב 5/6: שיפור מקומי (2-opt)...');
+
+        let totalTwoOptImprovement = 0;
+
+        for (const [busId, assignment] of assignments) {
+            if (assignment.route.length < 3) continue;
+
+            const originalDistance = this.calculateTotalRouteDistance(
+                assignment.route, assignment.bus.origin, assignment.bus.destination
+            );
+
+            // Apply 2-opt optimization
+            assignment.route = this.twoOptOptimize(
+                assignment.route,
+                assignment.bus.origin,
+                assignment.bus.destination
+            );
+
+            const optimizedDistance = this.calculateTotalRouteDistance(
+                assignment.route, assignment.bus.origin, assignment.bus.destination
+            );
+
+            const improvement = originalDistance - optimizedDistance;
+            totalTwoOptImprovement += improvement;
+        }
+
+        console.log(`2-opt refinement: -${totalTwoOptImprovement.toFixed(1)}km`);
+
+        // Inter-bus swap optimization
+        const swapResult = this.interBusSwapOptimization(assignments, 20);
+        console.log(`Inter-bus swaps: ${swapResult.swapCount}`);
+
+        // ========== PHASE 6: Generate results and quality metrics ==========
+        if (progressCallback) progressCallback('שלב 6/6: חישוב מדדי איכות...');
+
+        const results = {
+            assignments: new Map(),
+            summary: [],
+            totalStudents: studentPoints.length,
+            algorithm: 'V4-Genetic',
+            gaConfig: GA_CONFIG,
+            qualityMetrics: {}
+        };
+
+        let totalDistance = 0;
+        let maxRouteTime = 0;
+        let totalRouteTime = 0;
+
+        for (const [busId, assignment] of assignments) {
+            results.assignments.set(busId, assignment.students);
+
+            const routeDistance = this.calculateTotalRouteDistance(
+                assignment.route,
+                assignment.bus.origin,
+                assignment.bus.destination
+            );
+            const estimatedTime = this.estimateRouteTimeMinutes(routeDistance, assignment.route.length);
+
+            totalDistance += routeDistance;
+            totalRouteTime += estimatedTime;
+            maxRouteTime = Math.max(maxRouteTime, estimatedTime);
+
+            results.summary.push({
+                busId: busId,
+                busName: assignment.bus.bus.name,
+                count: assignment.students.length,
+                routeDistance: routeDistance.toFixed(1),
+                estimatedTime: estimatedTime.toFixed(0),
+                utilizationPercent: ((assignment.students.length / MAX_BUS_CAPACITY) * 100).toFixed(0)
+            });
+        }
+
+        // Calculate quality metrics
+        const avgRouteTime = busData.length > 0 ? totalRouteTime / busData.length : 0;
+        const avgStudentsPerBus = busData.length > 0 ? studentPoints.length / busData.length : 0;
+
+        // Efficiency score
+        const timeScore = Math.max(0, 100 - (maxRouteTime / MAX_ROUTE_TIME - 1) * 50);
+        const loadVariance = this.calculateLoadVariance(results.summary.map(s => parseInt(s.count)));
+        const loadScore = Math.max(0, 100 - loadVariance * 2);
+        const efficiencyScore = (timeScore * 0.6 + loadScore * 0.4).toFixed(0);
+
+        results.qualityMetrics = {
+            totalDistance: totalDistance.toFixed(1),
+            avgRouteTime: avgRouteTime.toFixed(0),
+            maxRouteTime: maxRouteTime.toFixed(0),
+            avgStudentsPerBus: avgStudentsPerBus.toFixed(1),
+            efficiencyScore: efficiencyScore,
+            twoOptImprovement: totalTwoOptImprovement.toFixed(1),
+            swapCount: swapResult.swapCount,
+            gaGenerations: GA_CONFIG.generations,
+            distanceCacheSize: this.distanceMatrixCache.size
+        };
+
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`=== SMART BATCH ASSIGNMENT V4 COMPLETE (${duration}s) ===`);
         console.log('Summary:', results.summary);
         console.log('Quality Metrics:', results.qualityMetrics);
 

@@ -35,10 +35,16 @@ class StudentManager {
             reassignAllBtn.addEventListener('click', () => this.reassignAllStudents());
         }
 
-        // Smart reassign button (batch assignment)
+        // Smart reassign button (batch assignment V3)
         const smartReassignBtn = document.getElementById('smart-reassign-btn');
         if (smartReassignBtn) {
             smartReassignBtn.addEventListener('click', () => this.smartReassignAllStudents());
+        }
+
+        // Smart reassign V4 button (Genetic Algorithm)
+        const smartReassignV4Btn = document.getElementById('smart-reassign-v4-btn');
+        if (smartReassignV4Btn) {
+            smartReassignV4Btn.addEventListener('click', () => this.smartReassignAllStudentsV4());
         }
 
 
@@ -538,6 +544,112 @@ class StudentManager {
             } catch (error) {
                 console.error('Error in smartReassignAllStudents:', error);
                 window.app.showToast('שגיאה בשיוך החכם', 'error');
+            }
+        });
+    }
+
+    // Smart reassign using Genetic Algorithm (V4) - best for large datasets
+    async smartReassignAllStudentsV4() {
+        // Check if Maps is ready
+        if (!window.mapsService.isReady()) {
+            window.app.showToast('יש להגדיר Google Maps API Key בהגדרות', 'error');
+            return;
+        }
+
+        // Get all students
+        const students = this.getAllStudents();
+
+        if (students.length === 0) {
+            window.app.showToast('אין תלמידים במערכת', 'warning');
+            return;
+        }
+
+        // Get all buses
+        const buses = window.busManager ? window.busManager.getAllBuses() : [];
+
+        if (buses.length === 0) {
+            window.app.showToast('אין אוטובוסים במערכת', 'warning');
+            return;
+        }
+
+        // Show confirmation dialog
+        const confirmMessage = `שיוך חכם V4 (אלגוריתם גנטי): האם לשייך את כל ${students.length} התלמידים?\n\n` +
+            `אלגוריתם זה:\n` +
+            `• משתמש באלגוריתם גנטי לאופטימיזציה גלובלית\n` +
+            `• יכול למצוא פתרונות טובים יותר מ-V3\n` +
+            `• מומלץ במיוחד לכמות גדולה של תלמידים (50+)\n` +
+            `• עשוי לקחת יותר זמן (30-60 שניות)`;
+
+        window.app.showConfirmModal(confirmMessage, async () => {
+            try {
+                // Progress callback
+                const showProgress = (message) => {
+                    window.app.showToast(message, 'info');
+                };
+
+                showProgress('מתחיל שיוך חכם V4 (אלגוריתם גנטי)...');
+
+                // Run smart batch assignment V4 with constraints
+                const constraints = {
+                    maxBusCapacity: 50,
+                    maxRideTimeMinutes: 60,
+                    maxTotalRouteMinutes: 90
+                };
+
+                const results = await window.mapsService.smartBatchAssignmentV4(
+                    students,
+                    buses,
+                    showProgress,
+                    constraints
+                );
+
+                if (!results) {
+                    window.app.showToast('שגיאה בשיוך החכם', 'error');
+                    return;
+                }
+
+                // Apply the results
+                showProgress('מעדכן תלמידים...');
+                await window.mapsService.applySmartAssignment(results);
+
+                // Reload students
+                await this.loadStudents();
+                window.app.updateDashboardStats();
+
+                // Reload buses to update student count
+                if (window.busManager) {
+                    window.busManager.renderBusesList();
+                }
+
+                // Show summary
+                let summaryMessage = `שיוך חכם V4 (גנטי) הושלם!\n`;
+                summaryMessage += `${results.totalStudents} תלמידים שובצו.\n\n`;
+
+                summaryMessage += `חלוקה:\n`;
+                summaryMessage += results.summary.map(s =>
+                    `• ${s.busName}: ${s.count} תלמידים (${s.routeDistance} ק"מ, ~${s.estimatedTime} דק')`
+                ).join('\n');
+
+                // Show quality metrics
+                if (results.qualityMetrics) {
+                    const qm = results.qualityMetrics;
+                    summaryMessage += `\n\n📊 מדדי איכות:`;
+                    summaryMessage += `\n• ציון יעילות: ${qm.efficiencyScore}/100`;
+                    summaryMessage += `\n• שיפור 2-opt: ${qm.twoOptImprovement} ק"מ`;
+                    summaryMessage += `\n• גודל מטריצת מרחקים: ${qm.distanceCacheSize}`;
+                    if (qm.swapCount > 0) {
+                        summaryMessage += `\n• החלפות: ${qm.swapCount}`;
+                    }
+                }
+
+                window.app.showToast(summaryMessage, 'success');
+
+                // Log detailed results
+                console.log('Smart assignment V4 (Genetic) results:', results);
+
+            } catch (error) {
+                console.error('Error in smartReassignAllStudentsV4:', error);
+                window.app.showToast('שגיאה בשיוך החכם V4', 'error');
             }
         });
     }
