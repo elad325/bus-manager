@@ -467,16 +467,17 @@ class StudentManager {
                     window.app.showToast(message, 'info');
                 };
 
-                showProgress('מתחיל שיוך חכם V2 (K-Means + Insertion Heuristic)...');
+                showProgress('מתחיל שיוך חכם V3 (VRP + 2-opt + Local Search)...');
 
-                // Run smart batch assignment V2 with constraints
+                // Run smart batch assignment V3 with constraints
                 const constraints = {
                     maxBusCapacity: 50,
-                    maxRideTimeMinutes: 60,      // Max time any student on bus
-                    maxTotalRouteMinutes: 90     // Max total route time
+                    maxRideTimeMinutes: 60,       // Max time any student on bus
+                    maxTotalRouteMinutes: 90,     // Max total route time
+                    adaptiveConstraints: true     // Automatically relax if impossible
                 };
 
-                const results = await window.mapsService.smartBatchAssignmentV2(
+                const results = await window.mapsService.smartBatchAssignmentV3(
                     students,
                     buses,
                     showProgress,
@@ -501,18 +502,38 @@ class StudentManager {
                     window.busManager.renderBusesList();
                 }
 
-                // Show summary with distance and time info
-                let summaryMessage = `שיוך חכם V2 הושלם!\n`;
-                summaryMessage += `${results.totalStudents} תלמידים קובצו ל-${results.clustersCreated} קלאסטרים גיאוגרפיים.\n\n`;
+                // Show summary with distance, time, and quality metrics
+                let summaryMessage = `שיוך חכם V3 הושלם!\n`;
+                summaryMessage += `${results.totalStudents} תלמידים קובצו ל-${results.clustersCreated} קלאסטרים.\n\n`;
+
+                // Show constraint relaxation warning if applicable
+                if (results.constraintsRelaxed) {
+                    summaryMessage += `⚠️ אילוצי זמן הותאמו אוטומטית (${results.effectiveMaxRouteTime} דק')\n\n`;
+                }
+
                 summaryMessage += `חלוקה:\n`;
                 summaryMessage += results.summary.map(s =>
-                    `• ${s.busName}: ${s.count} תלמידים (${s.routeDistance} ק"מ, ~${s.estimatedTime} דק')`
+                    `• ${s.busName}: ${s.count} תלמידים (${s.routeDistance} ק"מ, ~${s.estimatedTime} דק', ${s.utilizationPercent}% ניצולת)`
                 ).join('\n');
+
+                // Show quality metrics
+                if (results.qualityMetrics) {
+                    const qm = results.qualityMetrics;
+                    summaryMessage += `\n\n📊 מדדי איכות:`;
+                    summaryMessage += `\n• ציון יעילות: ${qm.efficiencyScore}/100`;
+                    summaryMessage += `\n• שיפור 2-opt: ${qm.twoOptImprovement} ק"מ`;
+                    if (qm.swapCount > 0) {
+                        summaryMessage += `\n• החלפות בין אוטובוסים: ${qm.swapCount}`;
+                    }
+                    if (qm.relocations > 0) {
+                        summaryMessage += `\n• העברות תלמידים: ${qm.relocations}`;
+                    }
+                }
 
                 window.app.showToast(summaryMessage, 'success');
 
                 // Log detailed results
-                console.log('Smart assignment V2 results:', results);
+                console.log('Smart assignment V3 results:', results);
 
             } catch (error) {
                 console.error('Error in smartReassignAllStudents:', error);
