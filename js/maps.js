@@ -740,8 +740,8 @@ class MapsService {
             });
         });
 
-        // Display all routes on map
-        this.displayChunkedRoutes(allRouteResults, allOrderedStops);
+        // Display all routes on map (using smart unified display)
+        this.displaySmartRoute(allRouteResults, allOrderedStops);
 
         return {
             success: true,
