@@ -1537,6 +1537,262 @@ class MapsService {
     }
 
     // ==========================================
+    // 2-OPT LOCAL SEARCH (TSP IMPROVEMENT)
+    // ==========================================
+
+    /**
+     * 2-opt algorithm for route optimization
+     * Repeatedly reverses segments of the route to find improvements
+     * This is the classic TSP local search algorithm
+     * @param {Array} route - Array of points with {lat, lng}
+     * @param {Object} origin - Start point
+     * @param {Object} destination - End point
+     * @returns {Array} Optimized route
+     */
+    twoOptOptimize(route, origin, destination) {
+        if (route.length < 3) return [...route];
+
+        let improved = true;
+        let currentRoute = [...route];
+        let iterations = 0;
+        const maxIterations = 100;
+
+        while (improved && iterations < maxIterations) {
+            improved = false;
+            iterations++;
+
+            for (let i = 0; i < currentRoute.length - 1; i++) {
+                for (let j = i + 2; j < currentRoute.length; j++) {
+                    // Calculate current distance for edges (i, i+1) and (j, j+1)
+                    const pointI = i === 0 ? origin : currentRoute[i - 1];
+                    const pointI1 = currentRoute[i];
+                    const pointJ = currentRoute[j];
+                    const pointJ1 = j === currentRoute.length - 1 ? destination : currentRoute[j + 1];
+
+                    const currentDist =
+                        this.calculateDistance(pointI.lat, pointI.lng, pointI1.lat, pointI1.lng) +
+                        this.calculateDistance(pointJ.lat, pointJ.lng, pointJ1.lat, pointJ1.lng);
+
+                    // Calculate new distance if we reverse the segment between i and j
+                    const newDist =
+                        this.calculateDistance(pointI.lat, pointI.lng, pointJ.lat, pointJ.lng) +
+                        this.calculateDistance(pointI1.lat, pointI1.lng, pointJ1.lat, pointJ1.lng);
+
+                    if (newDist < currentDist - 0.01) { // Small epsilon to avoid floating point issues
+                        // Reverse the segment between i and j (inclusive)
+                        const reversed = currentRoute.slice(i, j + 1).reverse();
+                        currentRoute = [
+                            ...currentRoute.slice(0, i),
+                            ...reversed,
+                            ...currentRoute.slice(j + 1)
+                        ];
+                        improved = true;
+                    }
+                }
+            }
+        }
+
+        if (iterations > 1) {
+            console.log(`2-opt optimized route in ${iterations} iterations`);
+        }
+
+        return currentRoute;
+    }
+
+    /**
+     * Calculate the total improvement from 2-opt optimization
+     */
+    calculateTwoOptImprovement(originalRoute, optimizedRoute, origin, destination) {
+        const originalDist = this.calculateTotalRouteDistance(originalRoute, origin, destination);
+        const optimizedDist = this.calculateTotalRouteDistance(optimizedRoute, origin, destination);
+        return {
+            originalDistance: originalDist,
+            optimizedDistance: optimizedDist,
+            improvement: originalDist - optimizedDist,
+            improvementPercent: ((originalDist - optimizedDist) / originalDist * 100).toFixed(1)
+        };
+    }
+
+    // ==========================================
+    // INTER-BUS SWAP OPTIMIZATION
+    // ==========================================
+
+    /**
+     * Try to improve total distance by swapping students between buses
+     * @param {Map} assignments - Map of busId -> {bus, students, route}
+     * @param {number} maxIterations - Maximum swap attempts
+     * @returns {Object} { improved: boolean, swapCount: number }
+     */
+    interBusSwapOptimization(assignments, maxIterations = 50) {
+        let totalSwaps = 0;
+        let improved = true;
+        let iteration = 0;
+
+        while (improved && iteration < maxIterations) {
+            improved = false;
+            iteration++;
+
+            const busIds = Array.from(assignments.keys());
+
+            // Try swapping students between each pair of buses
+            for (let i = 0; i < busIds.length; i++) {
+                for (let j = i + 1; j < busIds.length; j++) {
+                    const busA = assignments.get(busIds[i]);
+                    const busB = assignments.get(busIds[j]);
+
+                    if (!busA.students.length || !busB.students.length) continue;
+
+                    // Try each student from busA with each student from busB
+                    for (let a = 0; a < busA.route.length; a++) {
+                        for (let b = 0; b < busB.route.length; b++) {
+                            const studentA = busA.route[a];
+                            const studentB = busB.route[b];
+
+                            // Calculate current total distance
+                            const currentDistA = this.calculateTotalRouteDistance(
+                                busA.route, busA.bus.origin, busA.bus.destination
+                            );
+                            const currentDistB = this.calculateTotalRouteDistance(
+                                busB.route, busB.bus.origin, busB.bus.destination
+                            );
+                            const currentTotal = currentDistA + currentDistB;
+
+                            // Create new routes with swapped students
+                            const newRouteA = [...busA.route];
+                            const newRouteB = [...busB.route];
+                            newRouteA[a] = studentB;
+                            newRouteB[b] = studentA;
+
+                            // Optimize new routes with 2-opt
+                            const optimizedRouteA = this.twoOptOptimize(
+                                newRouteA, busA.bus.origin, busA.bus.destination
+                            );
+                            const optimizedRouteB = this.twoOptOptimize(
+                                newRouteB, busB.bus.origin, busB.bus.destination
+                            );
+
+                            // Calculate new total distance
+                            const newDistA = this.calculateTotalRouteDistance(
+                                optimizedRouteA, busA.bus.origin, busA.bus.destination
+                            );
+                            const newDistB = this.calculateTotalRouteDistance(
+                                optimizedRouteB, busB.bus.origin, busB.bus.destination
+                            );
+                            const newTotal = newDistA + newDistB;
+
+                            // If improvement found, apply the swap
+                            if (newTotal < currentTotal - 0.5) { // At least 0.5km improvement
+                                busA.route = optimizedRouteA;
+                                busB.route = optimizedRouteB;
+
+                                // Swap in students arrays too
+                                const tempStudent = busA.students[a];
+                                busA.students[a] = busB.students[b];
+                                busB.students[b] = tempStudent;
+
+                                totalSwaps++;
+                                improved = true;
+                                console.log(`Swap improvement: ${(currentTotal - newTotal).toFixed(2)}km ` +
+                                    `(${busA.bus.bus.name} <-> ${busB.bus.bus.name})`);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return { improved: totalSwaps > 0, swapCount: totalSwaps, iterations: iteration };
+    }
+
+    /**
+     * Try relocating a student from one bus to another (not swap, just move)
+     * Useful when buses have uneven loads
+     */
+    relocateOptimization(assignments, maxCapacity = 50) {
+        let totalRelocations = 0;
+        let improved = true;
+
+        while (improved) {
+            improved = false;
+
+            const busIds = Array.from(assignments.keys());
+
+            for (const sourceBusId of busIds) {
+                const sourceBus = assignments.get(sourceBusId);
+                if (sourceBus.route.length <= 1) continue; // Don't leave bus empty
+
+                for (let s = 0; s < sourceBus.route.length; s++) {
+                    const studentPoint = sourceBus.route[s];
+
+                    // Find best target bus for this student
+                    let bestTarget = null;
+                    let bestImprovement = 0;
+
+                    for (const targetBusId of busIds) {
+                        if (targetBusId === sourceBusId) continue;
+
+                        const targetBus = assignments.get(targetBusId);
+                        if (targetBus.students.length >= maxCapacity) continue;
+
+                        // Calculate cost of removing from source
+                        const sourceRouteCurrent = this.calculateTotalRouteDistance(
+                            sourceBus.route, sourceBus.bus.origin, sourceBus.bus.destination
+                        );
+                        const sourceRouteWithout = [...sourceBus.route];
+                        sourceRouteWithout.splice(s, 1);
+                        const sourceRouteNew = this.calculateTotalRouteDistance(
+                            sourceRouteWithout, sourceBus.bus.origin, sourceBus.bus.destination
+                        );
+
+                        // Calculate cost of adding to target
+                        const targetRouteCurrent = this.calculateTotalRouteDistance(
+                            targetBus.route, targetBus.bus.origin, targetBus.bus.destination
+                        );
+                        const insertion = this.calculateInsertionCost(
+                            targetBus.route, studentPoint, targetBus.bus.origin, targetBus.bus.destination
+                        );
+                        const targetRouteNew = this.calculateTotalRouteDistance(
+                            insertion.newRoute, targetBus.bus.origin, targetBus.bus.destination
+                        );
+
+                        // Total improvement
+                        const totalImprovement = (sourceRouteCurrent + targetRouteCurrent) -
+                            (sourceRouteNew + targetRouteNew);
+
+                        if (totalImprovement > bestImprovement + 1) { // At least 1km improvement
+                            bestImprovement = totalImprovement;
+                            bestTarget = {
+                                bus: targetBus,
+                                insertion: insertion,
+                                sourceRouteWithout: sourceRouteWithout
+                            };
+                        }
+                    }
+
+                    if (bestTarget) {
+                        // Apply relocation
+                        const student = sourceBus.students[s];
+
+                        sourceBus.route = bestTarget.sourceRouteWithout;
+                        sourceBus.students.splice(s, 1);
+
+                        bestTarget.bus.route = bestTarget.insertion.newRoute;
+                        bestTarget.bus.students.push(student);
+
+                        totalRelocations++;
+                        improved = true;
+                        console.log(`Relocated student: ${bestImprovement.toFixed(2)}km improvement`);
+                        break; // Restart search after each relocation
+                    }
+                }
+                if (improved) break;
+            }
+        }
+
+        return { relocations: totalRelocations };
+    }
+
+    // ==========================================
     // TIME WINDOW CONSTRAINTS
     // ==========================================
 
@@ -1955,6 +2211,400 @@ class MapsService {
             onRouteDirection: onRouteDirection,
             groupSize: group.students.length
         };
+    }
+
+    // ==========================================
+    // SMART BATCH ASSIGNMENT ALGORITHM (V3)
+    // ==========================================
+
+    /**
+     * Smart batch assignment V3 - Advanced VRP with Local Search
+     *
+     * Improvements over V2:
+     * 1. Adaptive constraints - automatically relaxes if impossible
+     * 2. 2-opt route optimization within each bus
+     * 3. Inter-bus swap optimization for global improvement
+     * 4. Relocation optimization for load balancing
+     * 5. Quality metrics and efficiency scoring
+     *
+     * @param {Array} students - All students to assign
+     * @param {Array} buses - Available buses
+     * @param {Function} progressCallback - Progress update callback
+     * @param {Object} constraints - Assignment constraints
+     * @returns {Object} Assignment results with quality metrics
+     */
+    async smartBatchAssignmentV3(students, buses, progressCallback = null, constraints = {}) {
+        const MAX_BUS_CAPACITY = constraints.maxBusCapacity || 50;
+        const MAX_RIDE_TIME = constraints.maxRideTimeMinutes || 60;
+        const MAX_ROUTE_TIME = constraints.maxTotalRouteMinutes || 90;
+        const ADAPTIVE_CONSTRAINTS = constraints.adaptiveConstraints !== false; // Default true
+
+        if (!this.isReady()) {
+            console.log('Maps not ready for smart assignment');
+            return null;
+        }
+
+        if (!students || students.length === 0 || !buses || buses.length === 0) {
+            console.log('No students or buses for assignment');
+            return null;
+        }
+
+        console.log(`=== SMART BATCH ASSIGNMENT V3 ===`);
+        console.log(`Students: ${students.length}, Buses: ${buses.length}`);
+        console.log(`Constraints: maxCapacity=${MAX_BUS_CAPACITY}, maxRideTime=${MAX_RIDE_TIME}min, maxRouteTime=${MAX_ROUTE_TIME}min`);
+        console.log(`Adaptive constraints: ${ADAPTIVE_CONSTRAINTS ? 'ENABLED' : 'DISABLED'}`);
+
+        const startTime = Date.now();
+
+        // ========== PHASE 1: Geocode all students ==========
+        if (progressCallback) progressCallback('שלב 1/8: מיקום תלמידים...');
+
+        const studentPoints = [];
+        for (const student of students) {
+            if (!student.address) continue;
+
+            const coords = await this.geocodeAddress(student.address);
+            if (coords) {
+                studentPoints.push({
+                    lat: coords.lat,
+                    lng: coords.lng,
+                    student: student,
+                    address: student.address
+                });
+            }
+        }
+
+        console.log(`Geocoded ${studentPoints.length}/${students.length} students`);
+
+        // ========== PHASE 2: Geocode bus endpoints ==========
+        if (progressCallback) progressCallback('שלב 2/8: מיקום מסלולי אוטובוסים...');
+
+        const busData = [];
+        for (const bus of buses) {
+            const startCoords = bus.startLocation ? await this.geocodeAddress(bus.startLocation) : null;
+            const endCoords = bus.endLocation ? await this.geocodeAddress(bus.endLocation) : null;
+
+            if (startCoords && endCoords) {
+                busData.push({
+                    bus: bus,
+                    origin: startCoords,
+                    destination: endCoords,
+                    route: [],
+                    assignedStudents: [],
+                    totalDistance: 0,
+                    estimatedTime: 0
+                });
+            }
+        }
+
+        console.log(`Prepared ${busData.length} buses with valid routes`);
+
+        // ========== PHASE 3: Adaptive constraint calculation ==========
+        if (progressCallback) progressCallback('שלב 3/8: חישוב אילוצים אדפטיביים...');
+
+        let effectiveMaxRouteTime = MAX_ROUTE_TIME;
+        let constraintsRelaxed = false;
+
+        if (ADAPTIVE_CONSTRAINTS && studentPoints.length > 0 && busData.length > 0) {
+            // Calculate minimum possible route time based on geographic spread
+            const allCoords = studentPoints.map(p => ({ lat: p.lat, lng: p.lng }));
+            const geographicSpread = this.calculateGeographicSpread(allCoords);
+
+            // Estimate minimum route time per bus
+            const avgStudentsPerBus = studentPoints.length / busData.length;
+            const minRouteDistanceEstimate = geographicSpread.maxDistance / 2; // Rough estimate
+            const minRouteTimeEstimate = this.estimateRouteTimeMinutes(minRouteDistanceEstimate, avgStudentsPerBus);
+
+            console.log(`Geographic spread: ${geographicSpread.maxDistance.toFixed(1)}km`);
+            console.log(`Estimated min route time per bus: ${minRouteTimeEstimate.toFixed(0)}min`);
+
+            if (minRouteTimeEstimate > MAX_ROUTE_TIME) {
+                effectiveMaxRouteTime = Math.ceil(minRouteTimeEstimate * 1.2); // Add 20% buffer
+                constraintsRelaxed = true;
+                console.log(`⚠️ Constraints relaxed: maxRouteTime ${MAX_ROUTE_TIME} -> ${effectiveMaxRouteTime}min`);
+            }
+        }
+
+        // ========== PHASE 4: K-Means Clustering ==========
+        if (progressCallback) progressCallback('שלב 4/8: קיבוץ גיאוגרפי (K-Means)...');
+
+        const optimalK = this.calculateOptimalK(studentPoints.length, busData.length, MAX_BUS_CAPACITY);
+        const clusters = this.kMeansClustering(studentPoints, optimalK);
+
+        console.log(`Created ${clusters.length} geographic clusters:`);
+        clusters.forEach((c, i) => {
+            console.log(`  Cluster ${i + 1}: ${c.points.length} students at (${c.centroid.lat.toFixed(4)}, ${c.centroid.lng.toFixed(4)})`);
+        });
+
+        // ========== PHASE 5: Initial assignment with insertion heuristic ==========
+        if (progressCallback) progressCallback('שלב 5/8: שיוך ראשוני...');
+
+        const assignments = new Map();
+        for (const bd of busData) {
+            assignments.set(bd.bus.id, {
+                bus: bd,
+                students: [],
+                route: []
+            });
+        }
+
+        // Calculate cluster-bus affinities
+        for (const cluster of clusters) {
+            cluster.busAffinities = busData.map(bd => {
+                const distToRoute = this.calculateDistanceToRouteLine(
+                    cluster.centroid, bd.origin, bd.destination
+                );
+                const onDirection = this.isOnRouteDirection(cluster.centroid, bd.origin, bd.destination);
+
+                return {
+                    busId: bd.bus.id,
+                    busName: bd.bus.name,
+                    distToRoute: distToRoute,
+                    onDirection: onDirection,
+                    score: distToRoute + (onDirection ? 0 : 15)
+                };
+            });
+            cluster.busAffinities.sort((a, b) => a.score - b.score);
+        }
+
+        // Sort clusters by size (largest first)
+        clusters.sort((a, b) => b.points.length - a.points.length);
+
+        let unassignedStudents = [];
+
+        // Assign clusters to buses
+        for (const cluster of clusters) {
+            let clusterAssigned = false;
+
+            for (const affinity of cluster.busAffinities) {
+                const assignment = assignments.get(affinity.busId);
+                const wouldBeCount = assignment.students.length + cluster.points.length;
+
+                if (wouldBeCount <= MAX_BUS_CAPACITY) {
+                    // Sort cluster students by distance from bus origin (farthest first for pickup)
+                    const studentsToAdd = [...cluster.points].sort((a, b) => {
+                        const distA = this.calculateDistance(a.lat, a.lng, assignment.bus.origin.lat, assignment.bus.origin.lng);
+                        const distB = this.calculateDistance(b.lat, b.lng, assignment.bus.origin.lat, assignment.bus.origin.lng);
+                        return distB - distA; // Farthest first
+                    });
+
+                    // Add all students from cluster
+                    for (const point of studentsToAdd) {
+                        const insertion = this.calculateInsertionCost(
+                            assignment.route,
+                            point,
+                            assignment.bus.origin,
+                            assignment.bus.destination
+                        );
+                        assignment.route = insertion.newRoute;
+                        assignment.students.push(point.student);
+                    }
+
+                    console.log(`Assigned ${cluster.points.length} students to "${affinity.busName}" ` +
+                        `(total: ${assignment.students.length}/${MAX_BUS_CAPACITY})`);
+
+                    clusterAssigned = true;
+                    break;
+                }
+            }
+
+            if (!clusterAssigned) {
+                console.log(`Could not assign cluster of ${cluster.points.length} students, splitting...`);
+                unassignedStudents.push(...cluster.points);
+            }
+        }
+
+        // Handle unassigned students individually
+        for (const point of unassignedStudents) {
+            let bestBus = null;
+            let bestCost = Infinity;
+
+            for (const [busId, assignment] of assignments) {
+                if (assignment.students.length >= MAX_BUS_CAPACITY) continue;
+
+                const insertion = this.calculateInsertionCost(
+                    assignment.route,
+                    point,
+                    assignment.bus.origin,
+                    assignment.bus.destination
+                );
+
+                if (insertion.cost < bestCost) {
+                    bestCost = insertion.cost;
+                    bestBus = assignment;
+                }
+            }
+
+            if (bestBus) {
+                const insertion = this.calculateInsertionCost(
+                    bestBus.route,
+                    point,
+                    bestBus.bus.origin,
+                    bestBus.bus.destination
+                );
+                bestBus.route = insertion.newRoute;
+                bestBus.students.push(point.student);
+            }
+        }
+
+        // ========== PHASE 6: 2-opt route optimization ==========
+        if (progressCallback) progressCallback('שלב 6/8: אופטימיזציית מסלול (2-opt)...');
+
+        let totalTwoOptImprovement = 0;
+
+        for (const [busId, assignment] of assignments) {
+            if (assignment.route.length < 3) continue;
+
+            const originalDistance = this.calculateTotalRouteDistance(
+                assignment.route, assignment.bus.origin, assignment.bus.destination
+            );
+
+            // Apply 2-opt optimization
+            assignment.route = this.twoOptOptimize(
+                assignment.route,
+                assignment.bus.origin,
+                assignment.bus.destination
+            );
+
+            const optimizedDistance = this.calculateTotalRouteDistance(
+                assignment.route, assignment.bus.origin, assignment.bus.destination
+            );
+
+            const improvement = originalDistance - optimizedDistance;
+            totalTwoOptImprovement += improvement;
+
+            if (improvement > 0.1) {
+                console.log(`2-opt improved ${assignment.bus.bus.name}: -${improvement.toFixed(1)}km`);
+            }
+        }
+
+        console.log(`Total 2-opt improvement: ${totalTwoOptImprovement.toFixed(1)}km`);
+
+        // ========== PHASE 7: Inter-bus swap optimization ==========
+        if (progressCallback) progressCallback('שלב 7/8: אופטימיזציית החלפות בין אוטובוסים...');
+
+        const swapResult = this.interBusSwapOptimization(assignments, 30);
+        console.log(`Inter-bus swaps: ${swapResult.swapCount} (${swapResult.iterations} iterations)`);
+
+        const relocateResult = this.relocateOptimization(assignments, MAX_BUS_CAPACITY);
+        console.log(`Relocations: ${relocateResult.relocations}`);
+
+        // ========== PHASE 8: Final statistics and quality metrics ==========
+        if (progressCallback) progressCallback('שלב 8/8: חישוב מדדי איכות...');
+
+        const results = {
+            assignments: new Map(),
+            summary: [],
+            totalStudents: studentPoints.length,
+            clustersCreated: clusters.length,
+            unassignedCount: 0,
+            qualityMetrics: {},
+            constraintsRelaxed: constraintsRelaxed,
+            effectiveMaxRouteTime: effectiveMaxRouteTime
+        };
+
+        let totalDistance = 0;
+        let maxRouteTime = 0;
+        let totalRouteTime = 0;
+
+        for (const [busId, assignment] of assignments) {
+            results.assignments.set(busId, assignment.students);
+
+            const routeDistance = this.calculateTotalRouteDistance(
+                assignment.route,
+                assignment.bus.origin,
+                assignment.bus.destination
+            );
+            const estimatedTime = this.estimateRouteTimeMinutes(routeDistance, assignment.route.length);
+
+            totalDistance += routeDistance;
+            totalRouteTime += estimatedTime;
+            maxRouteTime = Math.max(maxRouteTime, estimatedTime);
+
+            results.summary.push({
+                busId: busId,
+                busName: assignment.bus.bus.name,
+                count: assignment.students.length,
+                routeDistance: routeDistance.toFixed(1),
+                estimatedTime: estimatedTime.toFixed(0),
+                utilizationPercent: ((assignment.students.length / MAX_BUS_CAPACITY) * 100).toFixed(0)
+            });
+        }
+
+        // Calculate quality metrics
+        const avgRouteTime = busData.length > 0 ? totalRouteTime / busData.length : 0;
+        const avgStudentsPerBus = busData.length > 0 ? studentPoints.length / busData.length : 0;
+
+        // Efficiency score: 100 = perfect, 0 = terrible
+        // Based on: route time vs target, load balance, constraint compliance
+        const timeScore = Math.max(0, 100 - (maxRouteTime / effectiveMaxRouteTime - 1) * 50);
+        const loadVariance = this.calculateLoadVariance(results.summary.map(s => s.count));
+        const loadScore = Math.max(0, 100 - loadVariance * 2);
+        const efficiencyScore = (timeScore * 0.6 + loadScore * 0.4).toFixed(0);
+
+        results.qualityMetrics = {
+            totalDistance: totalDistance.toFixed(1),
+            avgRouteTime: avgRouteTime.toFixed(0),
+            maxRouteTime: maxRouteTime.toFixed(0),
+            avgStudentsPerBus: avgStudentsPerBus.toFixed(1),
+            efficiencyScore: efficiencyScore,
+            twoOptImprovement: totalTwoOptImprovement.toFixed(1),
+            swapCount: swapResult.swapCount,
+            relocations: relocateResult.relocations
+        };
+
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`=== SMART BATCH ASSIGNMENT V3 COMPLETE (${duration}s) ===`);
+        console.log('Summary:', results.summary);
+        console.log('Quality Metrics:', results.qualityMetrics);
+
+        return results;
+    }
+
+    /**
+     * Calculate geographic spread of points
+     */
+    calculateGeographicSpread(points) {
+        if (points.length < 2) {
+            return { maxDistance: 0, avgDistance: 0 };
+        }
+
+        let maxDistance = 0;
+        let totalDistance = 0;
+        let pairs = 0;
+
+        // Sample pairs if too many points (to avoid O(n²) for large sets)
+        const sampleSize = Math.min(points.length, 50);
+        const sampledPoints = points.length <= 50 ? points :
+            points.filter((_, i) => i % Math.ceil(points.length / 50) === 0).slice(0, 50);
+
+        for (let i = 0; i < sampledPoints.length; i++) {
+            for (let j = i + 1; j < sampledPoints.length; j++) {
+                const dist = this.calculateDistance(
+                    sampledPoints[i].lat, sampledPoints[i].lng,
+                    sampledPoints[j].lat, sampledPoints[j].lng
+                );
+                maxDistance = Math.max(maxDistance, dist);
+                totalDistance += dist;
+                pairs++;
+            }
+        }
+
+        return {
+            maxDistance: maxDistance,
+            avgDistance: pairs > 0 ? totalDistance / pairs : 0
+        };
+    }
+
+    /**
+     * Calculate variance in bus load (for quality metrics)
+     */
+    calculateLoadVariance(loads) {
+        if (loads.length === 0) return 0;
+
+        const avg = loads.reduce((a, b) => a + b, 0) / loads.length;
+        const squaredDiffs = loads.map(load => Math.pow(load - avg, 2));
+        return Math.sqrt(squaredDiffs.reduce((a, b) => a + b, 0) / loads.length);
     }
 
     /**
