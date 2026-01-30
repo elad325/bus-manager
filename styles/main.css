@@ -1079,6 +1079,353 @@ body {
 }
 
 /* ===================================
+   Smart Route Manager - Enhanced UI
+   =================================== */
+
+/* Stats Grid */
+.route-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.route-stat-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.route-stat-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.route-stat-icon {
+    font-size: 1.5rem;
+}
+
+.route-stat-data {
+    display: flex;
+    flex-direction: column;
+}
+
+.route-stat-value {
+    font-weight: 600;
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+}
+
+.route-stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+/* Stops List Header */
+.stops-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) 0;
+    margin-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.stops-list-title {
+    font-weight: 600;
+    font-size: var(--font-size-md);
+}
+
+.stops-list-hint {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.stops-list-hint::before {
+    content: '↕';
+    font-size: 1rem;
+}
+
+/* Enhanced Stops List */
+.stops-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.stop-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.stop-item:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+}
+
+.stop-item.highlighted {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+/* Drag Handle */
+.stop-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    cursor: grab;
+    color: var(--text-muted);
+    border-radius: var(--radius-sm);
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.stop-handle:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.stop-handle:active {
+    cursor: grabbing;
+}
+
+.draggable-stop .stop-handle {
+    cursor: grab;
+}
+
+.fixed-stop .stop-handle {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.drag-icon {
+    font-weight: bold;
+    font-size: 1.1rem;
+    letter-spacing: 2px;
+}
+
+.lock-icon {
+    font-size: 0.9rem;
+}
+
+/* Stop Number Badge */
+.stop-number-badge {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--gradient-primary);
+    color: white;
+    border-radius: var(--radius-full);
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    flex-shrink: 0;
+}
+
+.stop-number-badge.fixed {
+    background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+}
+
+/* Stop Details */
+.stop-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.stop-item .stop-name {
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.stop-type-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--primary-color);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+
+.stop-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-xs);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.stop-meta .stop-address {
+    flex: 1;
+    min-width: 150px;
+}
+
+.stop-meta .stop-time {
+    color: var(--accent);
+    margin-top: 0;
+}
+
+.stop-route-info {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-xs);
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+/* Stop Actions */
+.stop-item .stop-actions {
+    flex-shrink: 0;
+}
+
+.btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+.btn-icon span {
+    font-size: 1rem;
+}
+
+/* Sortable.js States */
+.sortable-ghost {
+    opacity: 0.4;
+    background: var(--primary-color) !important;
+}
+
+.sortable-chosen {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    transform: scale(1.02);
+}
+
+.sortable-drag {
+    opacity: 1;
+    background: var(--bg-secondary);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* Loading States */
+.btn.loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-left: var(--spacing-sm);
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Skeleton Loader */
+.skeleton-loader {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.skeleton-line {
+    height: 20px;
+    background: linear-gradient(90deg,
+        var(--bg-tertiary) 25%,
+        var(--bg-secondary) 50%,
+        var(--bg-tertiary) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+    border-radius: var(--radius-sm);
+}
+
+.skeleton-line.short {
+    width: 60%;
+}
+
+@keyframes skeleton-loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Mobile Responsive for Smart Route Manager */
+@media (max-width: 768px) {
+    .route-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .route-stat-item {
+        padding: var(--spacing-sm);
+    }
+
+    .route-stat-icon {
+        font-size: 1.2rem;
+    }
+
+    .stop-item {
+        flex-wrap: wrap;
+        gap: var(--spacing-sm);
+    }
+
+    .stop-details {
+        order: 3;
+        width: 100%;
+        padding-right: 60px;
+    }
+
+    .stops-list-hint {
+        display: none;
+    }
+
+    .stop-meta {
+        flex-direction: column;
+        gap: var(--spacing-xs);
+    }
+}
+
+/* ===================================
    Settings Page
    =================================== */
 
