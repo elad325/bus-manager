@@ -411,7 +411,18 @@ class MapsService {
     }
 
     // Calculate optimized route - handles large number of waypoints by chunking
-    async calculateRoute(origin, destination, waypoints) {
+    /**
+     * Calculate route with optional optimization control
+     * @param {string} origin - Start address
+     * @param {string} destination - End address
+     * @param {Array} waypoints - Array of {name, address} objects
+     * @param {Object} options - Optional settings
+     * @param {boolean} options.optimize - Whether to optimize waypoint order (default: true)
+     * @returns {Promise<Object>} Route result
+     */
+    async calculateRoute(origin, destination, waypoints, options = {}) {
+        const { optimize = true } = options;
+
         if (!this.directionsService) {
             throw new Error('Google Maps לא מוגדר');
         }
@@ -463,20 +474,20 @@ class MapsService {
 
         if (waypointCoords.length <= MAX_WAYPOINTS) {
             // Can do it in one request
-            return this.calculateSingleRoute(origin, destination, originCoords, destCoords, waypointCoords);
+            return this.calculateSingleRoute(origin, destination, originCoords, destCoords, waypointCoords, optimize);
         } else {
             // Need to split into chunks and merge
             console.log(`Splitting ${waypointCoords.length} waypoints into chunks of ${MAX_WAYPOINTS}`);
-            return this.calculateChunkedRoute(origin, destination, originCoords, destCoords, waypointCoords, MAX_WAYPOINTS);
+            return this.calculateChunkedRoute(origin, destination, originCoords, destCoords, waypointCoords, MAX_WAYPOINTS, optimize);
         }
     }
 
     // Calculate route for a single chunk (up to 25 waypoints)
-    async calculateSingleRoute(origin, destination, originCoords, destCoords, waypointCoords) {
+    async calculateSingleRoute(origin, destination, originCoords, destCoords, waypointCoords, optimize = true) {
         // Clear previous display
         this.clearMapDisplay();
 
-        console.log(`calculateSingleRoute: ${waypointCoords.length} waypoints`);
+        console.log(`calculateSingleRoute: ${waypointCoords.length} waypoints, optimize: ${optimize}`);
         console.log('Waypoints:', waypointCoords.map(wp => `${wp.name}: ${wp.address}`));
 
         const waypointsForGoogle = waypointCoords.map(wp => ({
@@ -491,7 +502,7 @@ class MapsService {
                 origin: new google.maps.LatLng(originCoords.lat, originCoords.lng),
                 destination: new google.maps.LatLng(destCoords.lat, destCoords.lng),
                 waypoints: waypointsForGoogle,
-                optimizeWaypoints: true, // This is the magic - Google optimizes the order!
+                optimizeWaypoints: optimize, // When false, preserves user's manual order
                 travelMode: google.maps.TravelMode.DRIVING,
                 language: 'he'
             }, (result, status) => {
@@ -604,12 +615,14 @@ class MapsService {
     }
 
     // Calculate route with chunking for large number of waypoints
-    async calculateChunkedRoute(origin, destination, originCoords, destCoords, waypointCoords, chunkSize) {
+    async calculateChunkedRoute(origin, destination, originCoords, destCoords, waypointCoords, chunkSize, optimize = true) {
         // Clear previous display
         this.clearMapDisplay();
 
-        // Sort waypoints by distance from origin for better chunking
-        const sortedWaypoints = this.sortWaypointsByProximity(waypointCoords, originCoords, destCoords);
+        // Sort waypoints by distance from origin for better chunking (only if optimizing)
+        const sortedWaypoints = optimize
+            ? this.sortWaypointsByProximity(waypointCoords, originCoords, destCoords)
+            : waypointCoords; // Preserve user's order when not optimizing
 
         // Split into chunks - use smart chunking that considers connection points
         const chunks = this.createSmartChunks(sortedWaypoints, chunkSize, originCoords, destCoords);
@@ -671,7 +684,8 @@ class MapsService {
                     chunkDest,
                     currentOriginCoords,
                     chunkDestCoords,
-                    chunkWaypoints
+                    chunkWaypoints,
+                    optimize
                 );
 
                 // Store route result for map display
@@ -1038,7 +1052,7 @@ class MapsService {
     }
 
     // Calculate a single chunk of the route
-    async calculateChunkRoute(origin, destination, originCoords, destCoords, waypointCoords) {
+    async calculateChunkRoute(origin, destination, originCoords, destCoords, waypointCoords, optimize = true) {
         const waypointsForGoogle = waypointCoords.map(wp => ({
             location: new google.maps.LatLng(wp.location.lat, wp.location.lng),
             stopover: true
@@ -1049,7 +1063,7 @@ class MapsService {
                 origin: new google.maps.LatLng(originCoords.lat, originCoords.lng),
                 destination: new google.maps.LatLng(destCoords.lat, destCoords.lng),
                 waypoints: waypointsForGoogle,
-                optimizeWaypoints: true,
+                optimizeWaypoints: optimize, // When false, preserves user's manual order
                 travelMode: google.maps.TravelMode.DRIVING,
                 language: 'he'
             }, (result, status) => {
