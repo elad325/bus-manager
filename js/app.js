@@ -29,6 +29,35 @@ class App {
     setupEventListeners() {
         // No login/logout buttons - open access for everyone
 
+        // Quick Overview Widget
+        const quickOverviewWidget = document.getElementById('quick-overview-widget');
+        if (quickOverviewWidget) {
+            quickOverviewWidget.addEventListener('click', () => this.openQuickOverview());
+        }
+
+        // Close Quick Overview Modal
+        const closeOverviewBtn = document.getElementById('close-overview-modal');
+        if (closeOverviewBtn) {
+            closeOverviewBtn.addEventListener('click', () => this.closeQuickOverview());
+        }
+
+        // Close modal on overlay click
+        const overviewModal = document.getElementById('quick-overview-modal');
+        if (overviewModal) {
+            overviewModal.addEventListener('click', (e) => {
+                if (e.target === overviewModal) {
+                    this.closeQuickOverview();
+                }
+            });
+        }
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.closeQuickOverview();
+            }
+        });
+
         // Mobile menu toggle
         const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
         const navLinks = document.getElementById('nav-links');
@@ -447,6 +476,9 @@ class App {
 
         // Update recent items
         this.updateRecentItems();
+
+        // Update Quick Overview badge
+        this.updateQuickOverviewBadge();
     }
 
     // Update recent items on dashboard
@@ -579,6 +611,188 @@ class App {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // ===================================
+    // Quick Overview (Dashboard Widget)
+    // ===================================
+
+    // Open Quick Overview Modal
+    async openQuickOverview() {
+        const modal = document.getElementById('quick-overview-modal');
+        if (!modal) return;
+
+        // Show modal
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+
+        // Load and render data
+        await this.renderQuickOverviewContent();
+    }
+
+    // Close Quick Overview Modal
+    closeQuickOverview() {
+        const modal = document.getElementById('quick-overview-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+            document.body.style.overflow = ''; // Restore scrolling
+        }
+    }
+
+    // Render Quick Overview Content
+    async renderQuickOverviewContent() {
+        const contentContainer = document.getElementById('quick-overview-content');
+        const modalBusCount = document.getElementById('modal-bus-count');
+        const modalStudentCount = document.getElementById('modal-student-count');
+
+        if (!contentContainer) return;
+
+        // Show loading state
+        contentContainer.innerHTML = `
+            <div class="skeleton-loader">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line short"></div>
+                <div class="skeleton-line"></div>
+            </div>
+        `;
+
+        try {
+            // Fetch data
+            const buses = await window.storage.getBuses();
+            const students = await window.storage.getStudents();
+
+            // Update badges
+            if (modalBusCount) modalBusCount.textContent = buses.length;
+            if (modalStudentCount) modalStudentCount.textContent = students.length;
+
+            // Create a map of students by bus ID
+            const studentsByBus = {};
+            students.forEach(student => {
+                const busId = student.busId || 'unassigned';
+                if (!studentsByBus[busId]) {
+                    studentsByBus[busId] = [];
+                }
+                studentsByBus[busId].push(student);
+            });
+
+            // Check if there's any data
+            if (buses.length === 0) {
+                contentContainer.innerHTML = `
+                    <div class="overview-empty-state">
+                        <span>🚌</span>
+                        <p>אין אוטובוסים במערכת</p>
+                        <p style="font-size: var(--font-size-sm); margin-top: var(--spacing-sm);">
+                            הוסף אוטובוסים דרך לשונית "אוטובוסים"
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Render buses with their students
+            let html = '';
+
+            buses.forEach(bus => {
+                const busStudents = studentsByBus[bus.id] || [];
+
+                html += `
+                    <div class="overview-bus-card">
+                        <div class="overview-bus-header">
+                            <div class="overview-bus-icon">🚌</div>
+                            <div class="overview-bus-info">
+                                <div class="overview-bus-name">${this.escapeHtml(bus.name)}</div>
+                                <div class="overview-bus-route">
+                                    <span>📍 ${this.escapeHtml(bus.startLocation || 'לא הוגדר')}</span>
+                                    <span>→</span>
+                                    <span>🏁 ${this.escapeHtml(bus.endLocation || 'לא הוגדר')}</span>
+                                </div>
+                            </div>
+                            <div class="overview-bus-stats">
+                                <div class="overview-stat">
+                                    <span class="overview-stat-value">${busStudents.length}</span>
+                                    <span class="overview-stat-label">תלמידים</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="overview-students-section">
+                            <div class="overview-students-title">
+                                <span>👨‍🎓</span>
+                                <span>רשימת תלמידים</span>
+                            </div>
+                            ${this.renderOverviewStudents(busStudents)}
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Show unassigned students if any
+            const unassignedStudents = studentsByBus['unassigned'] || [];
+            if (unassignedStudents.length > 0) {
+                html += `
+                    <div class="overview-bus-card" style="border-color: hsla(40, 90%, 50%, 0.3);">
+                        <div class="overview-bus-header" style="background: hsla(40, 90%, 50%, 0.1);">
+                            <div class="overview-bus-icon">⚠️</div>
+                            <div class="overview-bus-info">
+                                <div class="overview-bus-name">תלמידים ללא שיוך</div>
+                                <div class="overview-bus-route">
+                                    <span style="color: var(--warning);">תלמידים אלו טרם שויכו לאוטובוס</span>
+                                </div>
+                            </div>
+                            <div class="overview-bus-stats">
+                                <div class="overview-stat" style="background: hsla(40, 90%, 50%, 0.2);">
+                                    <span class="overview-stat-value" style="color: var(--warning);">${unassignedStudents.length}</span>
+                                    <span class="overview-stat-label">תלמידים</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="overview-students-section">
+                            <div class="overview-students-title">
+                                <span>👨‍🎓</span>
+                                <span>רשימת תלמידים</span>
+                            </div>
+                            ${this.renderOverviewStudents(unassignedStudents)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            contentContainer.innerHTML = html;
+
+        } catch (error) {
+            console.error('Error loading quick overview data:', error);
+            contentContainer.innerHTML = `
+                <div class="overview-empty-state">
+                    <span>❌</span>
+                    <p>שגיאה בטעינת הנתונים</p>
+                </div>
+            `;
+        }
+    }
+
+    // Render students list for overview (read-only)
+    renderOverviewStudents(students) {
+        if (students.length === 0) {
+            return '<div class="overview-no-students">אין תלמידים משויכים לאוטובוס זה</div>';
+        }
+
+        const studentsHtml = students.map(student => `
+            <div class="overview-student-item">
+                <span class="overview-student-icon">👤</span>
+                <span class="overview-student-name">${this.escapeHtml(student.firstName)} ${this.escapeHtml(student.lastName)}</span>
+                <span class="overview-student-address" title="${this.escapeHtml(student.address || '')}">${this.escapeHtml(student.address || '-')}</span>
+            </div>
+        `).join('');
+
+        return `<div class="overview-students-grid">${studentsHtml}</div>`;
+    }
+
+    // Update Quick Overview Widget Badge
+    async updateQuickOverviewBadge() {
+        const busCountEl = document.getElementById('overview-bus-count');
+        if (busCountEl) {
+            const buses = await window.storage.getBuses();
+            busCountEl.textContent = buses.length;
+        }
     }
 }
 

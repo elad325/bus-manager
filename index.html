@@ -122,6 +122,46 @@
                             <div id="recent-students" class="list-container"></div>
                         </div>
                     </div>
+
+                    <!-- Quick Overview Widget -->
+                    <div class="quick-overview-section">
+                        <div id="quick-overview-widget" class="quick-overview-widget glass-card">
+                            <div class="quick-overview-header">
+                                <div class="quick-overview-icon">🚌</div>
+                                <div class="quick-overview-title-section">
+                                    <h2>ניהול אוטובוסים</h2>
+                                    <p>מבט מהיר על כל האוטובוסים והתלמידים</p>
+                                </div>
+                                <div class="quick-overview-badge">
+                                    <span id="overview-bus-count">0</span> אוטובוסים
+                                </div>
+                            </div>
+                            <div class="quick-overview-hint">
+                                <span>👆</span> לחץ לצפייה במבט מהיר
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Overview Expanded View (Modal) -->
+                    <div id="quick-overview-modal" class="quick-overview-modal hidden">
+                        <div class="quick-overview-modal-content glass-card">
+                            <div class="quick-overview-modal-header">
+                                <h2>🚌 מבט מהיר - ניהול אוטובוסים</h2>
+                                <div class="quick-overview-modal-badges">
+                                    <span class="overview-badge"><span id="modal-bus-count">0</span> אוטובוסים</span>
+                                    <span class="overview-badge"><span id="modal-student-count">0</span> תלמידים</span>
+                                </div>
+                                <button id="close-overview-modal" class="modal-close">&times;</button>
+                            </div>
+                            <div class="quick-overview-notice">
+                                <span>🔒</span>
+                                <span>מצב צפייה בלבד - לעריכה עבור ללשוניות "אוטובוסים" או "תלמידים"</span>
+                            </div>
+                            <div id="quick-overview-content" class="quick-overview-content">
+                                <!-- Content will be populated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
                 </section>
 
                 <!-- Buses Page -->
