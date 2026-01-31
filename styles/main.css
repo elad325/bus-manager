@@ -2129,3 +2129,390 @@ body {
         margin-bottom: var(--spacing-sm);
     }
 }
+
+/* ===================================
+   Quick Overview - Dashboard Widget
+   =================================== */
+
+.quick-overview-section {
+    margin-top: var(--spacing-xl);
+}
+
+.quick-overview-widget {
+    padding: var(--spacing-lg);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    position: relative;
+    overflow: hidden;
+}
+
+.quick-overview-widget::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg,
+        hsla(var(--primary-hue), 90%, 56%, 0.1) 0%,
+        hsla(var(--secondary-hue), 70%, 55%, 0.1) 100%
+    );
+    opacity: 0;
+    transition: opacity var(--transition-normal);
+}
+
+.quick-overview-widget:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg), var(--shadow-glow);
+}
+
+.quick-overview-widget:hover::before {
+    opacity: 1;
+}
+
+.quick-overview-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    position: relative;
+    z-index: 1;
+}
+
+.quick-overview-icon {
+    font-size: 3rem;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.quick-overview-title-section h2 {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.quick-overview-title-section p {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.quick-overview-badge {
+    margin-right: auto;
+    background: var(--gradient-primary);
+    color: white;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-full);
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    box-shadow: var(--shadow-glow);
+}
+
+.quick-overview-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    position: relative;
+    z-index: 1;
+}
+
+/* Quick Overview Modal */
+.quick-overview-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: hsla(225, 30%, 5%, 0.9);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 1000;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: var(--spacing-xl);
+    overflow-y: auto;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.quick-overview-modal.hidden {
+    display: none;
+}
+
+.quick-overview-modal-content {
+    width: 100%;
+    max-width: 1200px;
+    max-height: calc(100vh - 4rem);
+    overflow-y: auto;
+    padding: var(--spacing-xl);
+    animation: slideUp 0.3s ease;
+}
+
+.quick-overview-modal-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-lg);
+    border-bottom: 1px solid var(--glass-border);
+    flex-wrap: wrap;
+}
+
+.quick-overview-modal-header h2 {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+}
+
+.quick-overview-modal-badges {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.overview-badge {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.quick-overview-modal-header .modal-close {
+    margin-right: auto;
+    font-size: 2rem;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+    line-height: 1;
+}
+
+.quick-overview-modal-header .modal-close:hover {
+    background: var(--bg-tertiary);
+    color: var(--danger);
+}
+
+.quick-overview-notice {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: hsla(40, 90%, 50%, 0.1);
+    border: 1px solid hsla(40, 90%, 50%, 0.3);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-lg);
+    color: var(--warning);
+    font-size: var(--font-size-sm);
+}
+
+.quick-overview-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+}
+
+/* Bus Overview Card */
+.overview-bus-card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--glass-border);
+    overflow: hidden;
+}
+
+.overview-bus-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-lg);
+    background: var(--gradient-card);
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.overview-bus-icon {
+    font-size: 2rem;
+}
+
+.overview-bus-info {
+    flex: 1;
+}
+
+.overview-bus-name {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.overview-bus-route {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}
+
+.overview-bus-stats {
+    display: flex;
+    gap: var(--spacing-md);
+}
+
+.overview-stat {
+    text-align: center;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+}
+
+.overview-stat-value {
+    display: block;
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.overview-stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+/* Students List in Overview */
+.overview-students-section {
+    padding: var(--spacing-lg);
+}
+
+.overview-students-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-md);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.overview-students-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--spacing-sm);
+}
+
+.overview-student-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    transition: background var(--transition-fast);
+}
+
+.overview-student-item:hover {
+    background: hsla(var(--primary-hue), 90%, 56%, 0.15);
+}
+
+.overview-student-icon {
+    font-size: 1rem;
+}
+
+.overview-student-name {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.overview-student-address {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    margin-right: auto;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    max-width: 100px;
+}
+
+.overview-no-students {
+    text-align: center;
+    padding: var(--spacing-lg);
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Empty State */
+.overview-empty-state {
+    text-align: center;
+    padding: var(--spacing-2xl);
+    color: var(--text-muted);
+}
+
+.overview-empty-state span {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: var(--spacing-md);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .quick-overview-header {
+        flex-wrap: wrap;
+    }
+
+    .quick-overview-badge {
+        margin-right: 0;
+        margin-top: var(--spacing-sm);
+    }
+
+    .quick-overview-modal {
+        padding: var(--spacing-md);
+    }
+
+    .quick-overview-modal-content {
+        padding: var(--spacing-md);
+    }
+
+    .quick-overview-modal-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .quick-overview-modal-header .modal-close {
+        position: absolute;
+        top: var(--spacing-md);
+        left: var(--spacing-md);
+        margin-right: 0;
+    }
+
+    .overview-bus-header {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .overview-bus-stats {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .overview-students-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .overview-student-address {
+        display: none;
+    }
+}
